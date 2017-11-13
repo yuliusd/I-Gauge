@@ -8,30 +8,35 @@ ESP8266WebServer server(80);
 IPAddress    apIP(10, 10, 10, 1);
 
 byte id = 1;
-boolean setting = 0;
+byte setting = 0;
 byte a, b, burst, interval;
 String noHP, kirim;
-String data, operators, station, latitude, longitude, dates;
-String tekanan, suhu, volt, arus;
+String data, operators, station, latitude, longitude, bujur, lintang, dates;
+String tekanan, suhu, volt, arus, offset;
 char g;
+unsigned long start;
 
 void setup() {
   Serial.begin(57600);
+  delay(1000);
   Serial.println();
   Serial.println("Configuring access point...");
+  Serial.flush();
   WiFi.disconnect();
+  delay(1000);
   WiFi.mode(WIFI_AP);
   WiFi.softAP(ssid, password);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   IPAddress myIP = WiFi.softAPIP();
+  Serial.println(F("waiting for connection"));
 
-  delay(1000);
-  server.sendHeader("Connection", "keep-alive");
+  while (Serial.find("123") == false) {
+  }
+  
+  //server.sendHeader("Connection", "close");
+  //server.sendHeader("Access-Control-Allow-Origin", "*");
   server.on("/", handleroot);
   server.begin();
-//  Serial.print("AP IP address: ");  // uncomment to know output from WEMOS
-//  Serial.println(myIP);
-//  Serial.printf("Web server started, open %s in a web browser\n", WiFi.softAPIP().toString().c_str());
 }
 
 void loop() {
@@ -73,6 +78,15 @@ String page() {
   html += "<form action=\"/\" method=\"POST\">\r\n";
   html += "<div id=\"Config\" class=\"tabcontent\">\r\n";
   html += "<fieldset>\r\n";
+  //COORDINATE
+  html += "<label><strong>I-GAUGE COORDINATE</strong></label>\r\n";
+  html += "<label for=\"longitude\">Longitude (&ordm;dd.dddddd)</label><input type=\"text\" name=\"longitude\" size=\"20\"  ";
+  html += "value=\"" + longitude + "\" />\r\n";
+  //LATITUDE
+  html += "<label for=\"latitude\">Latitude  (&ordm;dd.dddddd)</label><input type=\"text\" name=\"latitude\" size=\"20\"  ";
+  html += "value=\"" + latitude + "\" />\r\n";
+  //INTERVAL DATA
+  html += "<label><strong>INTERVAL DATA</strong></label>\r\n";
   //BURST INTERVAL
   html += "<label for=\"burst\">Burst Interval (Second)</label><input type=\"text\" name=\"burst\" size=\"20\" value=\"";
   html += String(burst) + "\">\r\n";
@@ -80,10 +94,15 @@ String page() {
   html += "<label for=\"data\">Data Interval (Minute)</label><input type=\"text\" maxlength=\"2\"name=\"data\" size=\"20\" value=\"";
   html += String(interval) + "\">\r\n";
   //PHONENUMBER
+  html += "<label><strong>SMS CENTER</strong></label>\r\n";
   html += "<label for=\"hp\">Phone Number</label><input type=\"text\" name=\"hp\" size=\"20\" value=\"";
   html += noHP + "\">\r\n";
-
+  //OFFSET
+  html += "<label><strong>OFFSET</strong></label>\r\n";
+  html += "<label for=\"offset\">OFFSET</label><input type=\"text\" name=\"offset\" size=\"20\" value=\"";
+  html += offset + "\">\r\n";
   if (setting == 1) html += "<p>SETTING DONE!</p>\r\n";
+  if (setting == 2) html += "<p>I-GAUGE BEGIN RECORD!</p>\r\n";
 
   html += "<p><input name=\"kirim\" type=\"submit\" value=\"SEND\"> &nbsp;&emsp;&ensp; <input name=\"kirim\" type=\"submit\" value=\"RECORD\"></p>\r\n";
   html += "</form>\r\n";
@@ -109,7 +128,7 @@ String page() {
   html += "<label for=\"date\">Date (yyyy/mm/dd hh:mm:ss)</label><input type=\"text\" readonly name=\"date\" size=\"20\" ";
   html += "value=\"" + dates + "\">\r\n";
   //NILAI TEKANAN
-  html += "<label for=\"pressure\">Pressure (kPa)</label><input type=\"text\" readonly name=\"data\" size=\"20\"  ";
+  html += "<label for=\"pressure\">Pressure (bar)</label><input type=\"text\" readonly name=\"data\" size=\"20\"  ";
   html += "value=\"" + tekanan + "\" />\r\n";
   //NILAI SUHU
   html += "<label for=\"temperature\">Temperature (&ordm;C)</label><input type=\"text\" readonly name=\"temperature\" size=\"20\" ";
@@ -121,7 +140,7 @@ String page() {
   html += "<label for=\"arus\">Current (Ampere)</label><input type=\"text\" readonly name=\"arus\" size=\"20\" ";
   html += "value=\"" + arus + "\" />\r\n";
   //BUTTON
-  html += "<p><input name=\"kirim\" type=\"submit\" value=\"REFRESH\"></p>\r\n";
+  html += "<p><input name=\"kirim\" type=\"submit\" value=\"REFRESH\"><a href=\"refresh\"></a></p>\r\n";
   html += "</form>\r\n";
   html += "</fieldset>\r\n";
   html += "</div>\r\n";
@@ -162,72 +181,92 @@ String htm(byte num) {
 
 void handleroot() {
   //BUKA KOMUNIKASI DENGAN ARDUINO
-  Serial.println("%");
-  data = "";
-  //cek kemungkinan terjadi error communication
-  while (1) {
+  Serial.println("Go");
+    while (Serial.find("&") == false) {
+    }
+    delay(500);
+    Serial.println("%");
+    data = "";
+    //cek kemungkinan terjadi error communication
+    while (1) {
     if (Serial.available()) {
       g = Serial.read();
       data += g;
       if (g == '*')break;
     }
-  }
+    }
 
-  //FORMAT DATA = ID | LONGITUDE | LATITUDE | DATE | PRESSURE | TEMPERATURE | VOLTAGE | CURRENT | BURST INTERVAL | DATA INTERVAL | PHONE NUMBER | OPERATOR
-  a = data.indexOf('|');
-  station = data.substring(0, a);
-  b = data.indexOf('|', a + 1);
-  longitude = data.substring(a + 1, b);
-  if (longitude.toFloat() > 0)  longitude = longitude + " E";
-  else longitude = String(longitude.toFloat() * -1.000000, 6) + " W";
-  a = data.indexOf('|', b + 1);
-  latitude = data.substring(b + 1, a);
-  if (latitude.toFloat() > 0)  latitude = latitude + " N";
-  else latitude = String(latitude.toFloat() * -1.000000, 6) + " S";
-  b = data.indexOf('|', a + 1);
-  dates = data.substring(a + 1, b);
-  a = data.indexOf('|', b + 1);
-  tekanan = data.substring(b + 1, a);
-  b = data.indexOf('|', a + 1);
-  suhu = data.substring(a + 1, b);
-  a = data.indexOf('|', b + 1);
-  volt = data.substring(b + 1, a);
-  b = data.indexOf('|', a + 1);
-  arus = data.substring(a + 1, b);
-  a = data.indexOf('|', b + 1);
-  burst = data.substring(b + 1, a).toInt();
-  b = data.indexOf('|', a + 1);
-  interval = data.substring(a + 1, b).toInt();
-  a = data.indexOf('|', b + 1);
-  noHP = data.substring(b + 1, a);
-  operators = data.substring(a + 1, data.length());
+    //FORMAT DATA = ID | LONGITUDE | LATITUDE | DATE | PRESSURE | TEMPERATURE | VOLTAGE | CURRENT | BURST INTERVAL | DATA INTERVAL | PHONE NUMBER | OPERATOR
+    //contoh = ID | 123 | -5 | 2017/11/23 12:12:12|12|23|5.0|1.2|2|10|0812345|TELKOMSEL|offset*
+    a = data.indexOf('|');
+    station = data.substring(0, a);
+    b = data.indexOf('|', a + 1);
+    longitude = data.substring(a + 1, b);
+    a = data.indexOf('|', b + 1);
+    latitude = data.substring(b + 1, a);
+    b = data.indexOf('|', a + 1);
+    dates = data.substring(a + 1, b);
+    a = data.indexOf('|', b + 1);
+    tekanan = data.substring(b + 1, a);
+    b = data.indexOf('|', a + 1);
+    suhu = data.substring(a + 1, b);
+    a = data.indexOf('|', b + 1);
+    volt = data.substring(b + 1, a);
+    b = data.indexOf('|', a + 1);
+    arus = data.substring(a + 1, b);
+    a = data.indexOf('|', b + 1);
+    burst = data.substring(b + 1, a).toInt();
+    b = data.indexOf('|', a + 1);
+    interval = data.substring(a + 1, b).toInt();
+    a = data.indexOf('|', b + 1);
+    noHP = data.substring(b + 1, a);
+    b = data.indexOf('|', a + 1);
+    operators = data.substring(a + 1, b);
+    offset = data.substring(b + 1, data.length() - 1);
 
-  if (server.args() == 9)
-  { kirim = server.arg("kirim");
+    if (server.args() == 10)
+    { kirim = server.arg("kirim");
     setting = 0;
     id = 1;
-  }
-  if (server.args() == 4) {
+    }
+    if (server.args() == 7) {
+    longitude = server.arg("longitude");
+    latitude = server.arg("latitude");
     burst = server.arg("burst").toInt();
     interval = server.arg("data").toInt();
     noHP = server.arg("hp");
+    offset = server.arg("offset");
     kirim = server.arg("kirim"); //VALUE = SEND | RECORD
-
-    setting = 1;
+    if (kirim == "SEND") {
+      setting = 1;
+    }
+    if (kirim == "RECORD") {
+      setting = 2;
+    }
     id = 2;
-  }
-  if (kirim == "")kirim = "None";
+    }
+    if (kirim == "")kirim = "None";
 
-  Serial.print("^");
-  Serial.print(burst);
-  Serial.print("|");
-  Serial.print(interval);
-  Serial.print("|");
-  Serial.print(noHP);
-  Serial.print("|");
-  Serial.print(kirim);
-  Serial.println("#");
-  server.sendHeader("Connection", "keep-alive");
+    //format data : ^ LONGITUDE | LATITUDE | BURST INTERVAL | DATA INTERVAL | PHONENUMBER | KIRIM #
+    Serial.print("^");
+    Serial.print(longitude);
+    Serial.print("|");
+    Serial.print(latitude);
+    Serial.print("|");
+    Serial.print(burst);
+    Serial.print("|");
+    Serial.print(interval);
+    Serial.print("|");
+    Serial.print(noHP);
+    Serial.print("|");
+    Serial.print(offset);
+    Serial.print("|");
+    Serial.print(kirim);
+    Serial.println("#");
+  
+  server.sendHeader("Connection", "close");
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "text/html", page());
+
 }
 
