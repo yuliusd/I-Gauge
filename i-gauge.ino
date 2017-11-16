@@ -955,7 +955,7 @@ void ambil() {
   file.print(noHP);     file.print('|');
   file.print(operators);  file.print('|');
   file.print(kode); file.print('|');
-  file.println(network);  file.print('|');
+  file.print(network);  file.println('|');
   file.flush();
   file.close();
   //bersih variabel
