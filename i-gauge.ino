@@ -58,7 +58,7 @@ byte smile[8] = {
 
 //GLOBAL VARIABLE
 char g, next_char, sdcard[25];
-byte a, b, c, bulan, hari, jam, menit, detik;
+byte a, b, c, t, bulan, hari, jam, menit, detik;
 int index = 0;
 int i, tahun, waktu, kode;
 float offset = 0;
@@ -853,7 +853,7 @@ void ambil() {
 
   //kirim ke server
   Serial.println(F("SEND DATA TO SERVER"));
-  server();
+  server(1);
 
   //tampilkan ke serial
   Serial.print(tahun);
@@ -1100,7 +1100,7 @@ void bacaserial(int wait) {
   }
 }
 
-void server() {
+void server(byte t) {
   //CHECK GPRS ATTACHED OR NOT
 serve:
   filename = "";
@@ -1207,56 +1207,122 @@ serve:
     Serial.flush();
     Serial1.flush();
     delay(500);
-    //SET HTTP URL
-    Serial.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
-    Serial1.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
-    bacaserial(1000);
-    Serial.flush();
-    Serial1.flush();
-    //http://www.mantisid.id/api/product/pdam_dt_c.php?="Data":"'2017-11-05 10:00:00', '111.111111', '-6.2222222', '400.33', '34.00', '5.05', '1.66', 'pdam_001', '5', '3'"
-    //Formatnya Date, longitude, latitude, pressure, temperature, volt, ampere, id, burst interval, data interval
-    y = "{\"Data\":\"'";
-    y += String(nows.year()) + "-";
-    if (bulan < 10) {
-      y += "0" + String(bulan) + "-";
+    if (t == 1) {
+      //SET HTTP URL
+      Serial.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
+      Serial1.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
+      bacaserial(1000);
+      Serial.flush();
+      Serial1.flush();
+      //http://www.mantisid.id/api/product/pdam_dt_c.php?="Data":"'2017-11-05 10:00:00', '111.111111', '-6.2222222', '400.33', '34.00', '5.05', '1.66', 'pdam_001', '5', '3'"
+      //Formatnya Date, longitude, latitude, pressure, temperature, volt, ampere, id, burst interval, data interval
+      y = "{\"Data\":\"'";
+      y += String(nows.year()) + "-";
+      if (bulan < 10) {
+        y += "0" + String(bulan) + "-";
+      }
+      if (bulan >= 10) {
+        y += String(bulan) + "-";
+      }
+      if (hari < 10) {
+        y += "0" + String(hari) + " ";
+      }
+      if (hari >= 10) {
+        y += String(hari) + " ";
+      }
+      if (jam < 10) {
+        y += "0" + String(jam) + ":";
+      }
+      if (jam >= 10) {
+        y += String(jam) + ":";
+      }
+      if (menit < 10) {
+        y += "0" + String(menit) + ":";
+      }
+      if (menit >= 10) {
+        y += String(menit) + ":";
+      }
+      if (detik < 10) {
+        y += "0" + String(detik);
+      }
+      if (detik >= 10) {
+        y += String(detik);
+      }
+      y += "','";
+      y += String(flon, 4) + "','";
+      y += String(flat, 4) + "','";
+      y += String(tekanan, 2) + "','";
+      y += String(suhu, 2) + "','";
+      y += String(voltase, 2) + "','";
+      y += String(ampere, 2) + "','";
+      y += String(ID) + "','";
+      y += String(burst) + "','";
+      y += String(interval) + "'\"}";
     }
-    if (bulan >= 10) {
-      y += String(bulan) + "-";
+    if (t == 2) {
+      //GET TIME
+      nows = rtc.now();
+      tahun = nows.year();
+      bulan = nows.month();
+      hari = nows.day();
+      jam = nows.hour();
+      menit = nows.minute();
+      detik = nows.second();
+
+      //SET HTTP URL
+      Serial.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
+      Serial1.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
+      bacaserial(1000);
+      Serial.flush();
+      Serial1.flush();
+      //http://www.mantisid.id/api/product/pdam_sim_c.php
+      //Formatnya YYY-MM-DD HH:MM:SS, ID, PULSA, KUOTA
+      y = "{\"Data\":\"'";
+      y += String(nows.year()) + "-";
+      if (bulan < 10) {
+        y += "0" + String(bulan) + "-";
+      }
+      if (bulan >= 10) {
+        y += String(bulan) + "-";
+      }
+      if (hari < 10) {
+        y += "0" + String(hari) + " ";
+      }
+      if (hari >= 10) {
+        y += String(hari) + " ";
+      }
+      if (jam < 10) {
+        y += "0" + String(jam) + ":";
+      }
+      if (jam >= 10) {
+        y += String(jam) + ":";
+      }
+      if (menit < 10) {
+        y += "0" + String(menit) + ":";
+      }
+      if (menit >= 10) {
+        y += String(menit) + ":";
+      }
+      if (detik < 10) {
+        y += "0" + String(detik);
+      }
+      if (detik >= 10) {
+        y += String(detik);
+      }
+      y += "','";
+      y += String(ID) + "','";
+      y += String(sms) + "','";
+      y += String(kuota) + "'\"}";
+
+      //simpan data sisa pulsa dan kuota ke dalam sd card
+      result = "pulsa.ab";
+
+      result.toCharArray(str, 13);
+      file = SD.open(str, FILE_WRITE);
+      file.println(y);
+      file.flush();
+      file.close();
     }
-    if (hari < 10) {
-      y += "0" + String(hari) + " ";
-    }
-    if (hari >= 10) {
-      y += String(hari) + " ";
-    }
-    if (jam < 10) {
-      y += "0" + String(jam) + ":";
-    }
-    if (jam >= 10) {
-      y += String(jam) + ":";
-    }
-    if (menit < 10) {
-      y += "0" + String(menit) + ":";
-    }
-    if (menit >= 10) {
-      y += String(menit) + ":";
-    }
-    if (detik < 10) {
-      y += "0" + String(detik);
-    }
-    if (detik >= 10) {
-      y += String(detik);
-    }
-    y += "','";
-    y += String(flon, 4) + "','";
-    y += String(flat, 4) + "','";
-    y += String(tekanan, 2) + "','";
-    y += String(suhu, 2) + "','";
-    y += String(voltase, 2) + "','";
-    y += String(ampere, 2) + "','";
-    y += String(ID) + "','";
-    y += String(burst) + "','";
-    y += String(interval) + "'\"}";
     //SET HTTP DATA FOR SENDING TO SERVER
     result = "AT+HTTPDATA=" + String(y.length() + 1) + ",15000";
     Serial.println(result);
@@ -1265,12 +1331,14 @@ serve:
       while (Serial1.find("DOWNLOAD") == false) {
       }
     }
+
     //SEND DATA
     Serial.println(y);
     Serial1.println(y);
     Serial.flush();
     Serial1.flush();
     bacaserial(1000);
+
     //HTTP METHOD ACTION
     filename = "";
     delay(1000);
@@ -1286,8 +1354,8 @@ serve:
     }
     Serial.flush();
     Serial1.flush();
-    //CHECK KODE HTTPACTION
 
+    //CHECK KODE HTTPACTION
     while ((start + 60000) > millis()) {
       while (Serial1.available() > 0) {
         g = Serial1.read();
@@ -1295,7 +1363,6 @@ serve:
         Serial.print(g);
       }
     }
-
 
     Serial.println(F("AT+HTTPTERM"));
     Serial1.println(F("AT+HTTPTERM"));
@@ -1648,7 +1715,8 @@ down:
   Serial.println();
   Serial.println(sms);
   Serial.println(kuota);
-  sendSMS();
+  //sendSMS();
+  sendkuota();
 }
 
 void sendSMS() {
@@ -1709,3 +1777,6 @@ void sendSMS() {
   Serial1.println(F("AT+CSCLK=2"));
 }
 
+void sendkuota() {
+  server(2);
+}
