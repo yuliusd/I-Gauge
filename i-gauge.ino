@@ -123,10 +123,10 @@ void setup() {
   voltase = float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 5.325443787;
   Serial.println(voltase);
   if (voltase >= 8.00) {
-    //digitalWrite(34,LOW);
+    digitalWrite(34,LOW);
   }
   if (voltase < 8.00) {
-    //digitalWrite(32,LOW);
+    digitalWrite(32,LOW);
   }
   delay(500);
 
