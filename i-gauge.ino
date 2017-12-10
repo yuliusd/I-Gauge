@@ -1,8 +1,8 @@
 //library
 #include <OneWire.h>
 #include <DallasTemperature.h>  // DS18B20 library. By : Miles Burton, Tim Newsome, and Guil Barros
-#include <SPI.h>              // KOMUNIKASI SD CARD
-#include <SD.h>               // SD CARD
+#include <SPI.h>
+#include <SD.h>
 #include <Wire.h>
 #include <RTClib.h>
 #include <TimeLib.h>
@@ -11,9 +11,17 @@
 #include <TinyGPS++.h>
 #include <Adafruit_ADS1015.h>
 
+//PIN SENSOR
+#define tegangan 1
+#define pressure 3
+#define arus 0
+#define ONE_WIRE_BUS 30
+#define SSpin 53
+String ID = "BOGOR10";
+
 //Component Initialization
 //LCD 16X2 I2C
-#define I2C_ADDR    0x3F //0x27 // <<----- Add your address here.  Find it from I2C Scanner
+#define I2C_ADDR    0x3F // <<----- Add your address here.  Find it from I2C Scanner
 #define BACKLIGHT_PIN     3
 #define En_pin  2
 #define Rw_pin  1
@@ -25,10 +33,9 @@
 LiquidCrystal_I2C lcd(I2C_ADDR, En_pin, Rw_pin, Rs_pin, D4_pin, D5_pin, D6_pin, D7_pin);
 
 //D18B20
-#define ONE_WIRE_BUS 32
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-DeviceAddress insideThermometer;
+DeviceAddress DS18B20;
 
 //ADS1115
 Adafruit_ADS1115 ads;
@@ -45,7 +52,7 @@ File file;
 char str[13];
 String filename, nama;
 
-//water icon
+//icon
 byte water[8] = {
   0x04, 0x04, 0x0E, 0x0E, 0x1F, 0x1F, 0x0E, 0x00,
 };
@@ -55,51 +62,73 @@ byte pipe[8] = {
 byte smile[8] = {
   0x00, 0x0A, 0x0A, 0x0A, 0x00, 0x11, 0x0E, 0x00,
 };
+byte clocks1[8] = {
+  0x00, 0x00, 0x00, 0x03, 0x0C, 0x09, 0x11, 0x13
+};
+byte clocks2[8] = {
+  0x00, 0x00, 0x00, 0x18, 0x06, 0x02, 0x01, 0x01,
+};
+byte clocks3[8] = {
+  0x10, 0x10, 0x08, 0x0C, 0x03, 0x00, 0x00, 0x00,
+};
+byte clocks4[8] = {
+  0x01, 0x01, 0x02, 0x06, 0x18, 0x00, 0x00, 0x00,
+};
 
 //GLOBAL VARIABLE
-char g, next_char, sdcard[25];
+char g, sdcard[25];
 byte a, b, c, t, bulan, hari, jam, menit, detik;
-int index = 0;
 int i, tahun, waktu, kode;
 float offset = 0;
-int mVperAmp = 66; //185 for 5A, 100 for 20A Module and 66 for 30A Module
+int mVperAmp = 185; //185 for 5A, 100 for 20A Module and 66 for 30A Module
 int ACSoffset = 2500;
 unsigned int interval; //menit
 unsigned int burst; //second
 unsigned long reads = 0; //pressure
-unsigned long reads0 = 0; //volt & arus
-//unsigned long reads1 = 0;
+unsigned long reads0 = 0; //arus
 unsigned long start;
 float flat = -987.6543;
 float flon = 789.1234;
-float hdop;
+float hdop=99;
 float voltase = 0.0;
 float ampere = 0.0;
 float tekanan, suhu;
 String result, y, operators;
-String ID = "BOGOR01";
-String noHP, network, APN, USER, PWD, sms, kuota;
+String noHP, source, network, APN, USER, PWD, sms, kuota;
 
 void setup() {
   start = millis();
   Serial.begin(9600);  // Serial USB
   Serial1.begin(9600);  // SIM800L
   Serial2.begin(9600);  // GPS U BLOX
-  Serial3.begin(57600); // WEMOS ESP8266
-
-  //LED status init
-  pinMode(34, OUTPUT);  // Red
-  pinMode(36, OUTPUT);  // Green
-  pinMode(38, OUTPUT);  // Blue
+  Serial3.begin(115200); // WEMOS ESP8266
 
   //LED supply init
-  pinMode(40, OUTPUT);  // Red
-  pinMode(42, OUTPUT);  // Green
-  pinMode(44, OUTPUT);  // Blue
+  pinMode(32, OUTPUT);  // Green
+  pinMode(34, OUTPUT);  // Blue
 
-  //SD pin
-  pinMode(53, OUTPUT); //SS MEGA 53, UNO 10
-  digitalWrite(53, HIGH);
+  //LED status init
+  pinMode(36, OUTPUT);  // Red
+  pinMode(38, OUTPUT);  // Green
+  pinMode(40, OUTPUT);  // Blue
+
+  for (i = 32; i < 41; i++) {
+    digitalWrite(i, HIGH);
+  }
+  delay(2000);
+  //INIT ADS1115
+  ads.begin();      //ADS1115
+  delay(1000);
+  //define supply power
+  voltase = float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 5.325443787;
+  Serial.println(voltase);
+  if (voltase >= 8.00) {
+    //digitalWrite(34,LOW);
+  }
+  if (voltase < 8.00) {
+    //digitalWrite(32,LOW);
+  }
+  delay(500);
 
   //LCD init
   lcd.begin(16, 2);
@@ -107,13 +136,17 @@ void setup() {
   lcd.setBacklight(HIGH);
   lcd.createChar(0, water);
   lcd.createChar(1, pipe);
-  lcd.createChar(2, smile);
+  lcd.createChar(2, clocks1);
+  lcd.createChar(3, clocks2);
+  lcd.createChar(4, clocks3);
+  lcd.createChar(5, clocks4);
+  lcd.createChar(6, smile);
 
   //WELCOME SCREEN
   Serial.println(F("WELCOME"));
   for (i = 0; i <= 2; i++) {
     Serial.println(F("I-GAUGE PDAM BOGOR"));
-    digitalWrite(34 + 2 * i, HIGH);
+    digitalWrite(36 + 2 * i, LOW);
     lcd.setCursor(2, 0);
     lcd.print(F("* I-GAUGE"));
     lcd.write(byte(1));
@@ -123,72 +156,96 @@ void setup() {
     lcd.print(F(" PDAM BOGOR "));
     lcd.write(byte(0));
     delay(2000);
-    digitalWrite(34 + 2 * i, LOW);
+    digitalWrite(36 + 2 * i, HIGH);
   }
 
   ledOff();
   lcd.clear();
   //INISIALISASI RTC
-  if (! rtc.begin()) {
-    lcd.setCursor(0, 0); lcd.print(F("RTC ERROR!!!")); //Please run the SetTime
-    lcd.setCursor(0, 1); lcd.print(F("CONTACT CS"));
-    digitalWrite(36, LOW);
+  if (! rtc.begin() || ! rtc.isrunning()) {
+    lcd.setCursor(0, 0); lcd.print(F("  RTC ERROR!!!")); //Please run the SetTime
+    lcd.setCursor(0, 1); lcd.print(F("   CONTACT CS"));
     Serial.println(F("RTC ERROR!!!"));
     while (1) {
-      digitalWrite(34, HIGH); //LED RED
-      delay(500);//
-      digitalWrite(34, LOW);
-      delay(500);//
+      digitalWrite(36, LOW);  delay(500); //LED RED
+      digitalWrite(36, HIGH); delay(500);
     }
   }
-  lcd.setCursor(0, 0); lcd.print(F("REAL TIME CLOCK")); //Please run the SetTime
-  lcd.setCursor(5, 1); lcd.print(F("READY"));
-  lcd.write(byte(2));
-  Serial.println(F("RTC OK!!!"));
 
+  //GET TIME FROM RTC
+  for (i = 0; i < 2; i++) {
+    digitalWrite(38, LOW); //GREEN
+    nows = rtc.now();
+    lcd.setCursor(4, 1);  lcd2digits(nows.hour());
+    lcd.write(':');       lcd2digits(nows.minute());
+    lcd.write(':');       lcd2digits(nows.second());
+    lcd.setCursor(3, 0);  lcd2digits(nows.day());
+    lcd.write('/');       lcd2digits(nows.month());
+    lcd.write('/');       lcd.print(nows.year());
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
+  }
+
+  lcd.clear();
+  lcd.setCursor(0, 0);   lcd.write(byte(2));
+  lcd.setCursor(1, 0);   lcd.write(byte(3));
+  lcd.setCursor(0, 1);   lcd.write(byte(4));
+  lcd.setCursor(1, 1);   lcd.write(byte(5));
+  lcd.setCursor(14, 0);  lcd.write(byte(2));
+  lcd.setCursor(15, 0);  lcd.write(byte(3));
+  lcd.setCursor(14, 1);  lcd.write(byte(4));
+  lcd.setCursor(15, 1);  lcd.write(byte(5));
+  lcd.setCursor(6, 0);   lcd.print(F("RTC!"));
+  lcd.setCursor(5, 1);   lcd.print(F("READY"));
+  lcd.write(byte(6));
+  Serial.println(F("RTC OK!!!"));
   //RTC OK - LED CYAN
-  digitalWrite(36, HIGH); //STATUS OK = GREEN
-  digitalWrite(38, HIGH); //BLUE
+  digitalWrite(38, LOW); //STATUS OK = GREEN
+  digitalWrite(40, LOW); //BLUE
   delay(5000);
+
   //INIT SD CARD
   ledOff();
-  digitalWrite(36, HIGH); //GREEN
+  pinMode(SSpin, OUTPUT); //SS MEGA 53, UNO 10
+  digitalWrite(SSpin, HIGH);
+  digitalWrite(38, LOW); //GREEN
+  delay(1000);
+
   lcd.clear();
   lcd.setCursor(0, 0); lcd.print(F("- SD CARD INIT -"));
   lcd.setCursor(0, 1);
+  delay(2000);
 
-  if (!SD.begin(53)) {
+  if (!SD.begin(SSpin)) {
     lcd.print(F("SD CARD ERROR!!!"));
     Serial.println(F("SD CARD ERROR!!!"));
-    digitalWrite(36, LOW);
-    digitalWrite(34, HIGH); //LED RED
+    digitalWrite(38, HIGH);
+    digitalWrite(36, LOW); //LED RED
     while (1) {}
   }
 
   lcd.setCursor(0, 1);
   lcd.print(F("- SD CARD OK!! -"));
   Serial.println(F("SD CARD OK!!!"));
-  digitalWrite(36, LOW);
-  digitalWrite(34, HIGH); // RED
-  digitalWrite(38, HIGH); // BLUE => PURPLE
+  digitalWrite(38, HIGH);
+  digitalWrite(36, LOW); // RED
+  digitalWrite(40, LOW); // BLUE => PURPLE
   delay(5000);
-
-  //INIT ADS1115
-  ads.begin();      //ADS1115
 
   //INISIALISASI DS18B20
   lcd.clear();
   ledOff();
 
   sensors.begin();  //DS18B20
-  sensors.getAddress(insideThermometer, 0);
-  sensors.setResolution(insideThermometer, 9); //sensorDeviceAddress, SENSOR_RESOLUTION
-  digitalWrite(36, HIGH); //STATUS OK = GREEN
-  if ( !sensors.getAddress(insideThermometer, 0)) {
+  sensors.getAddress(DS18B20, 0);
+  sensors.setResolution(DS18B20, 9); //sensorDeviceAddress, SENSOR_RESOLUTION
+  digitalWrite(38, LOW); //STATUS OK = GREEN
+  if ( !sensors.getAddress(DS18B20, 0)) {
     lcd.setCursor(0, 0); lcd.print(F("  TEMPERATURE"));
     lcd.setCursor(0, 1); lcd.print(F("  SENSOR ERROR"));
     Serial.println(F("TEMP SENSOR ERROR!!!"));
-    digitalWrite(34, HIGH); //STATUS RED + GREEN = YELLOW
+    digitalWrite(36, LOW); //STATUS RED + GREEN = YELLOW
   }
   else {
     lcd.setCursor(0, 0); lcd.print(F("  TEMPERATURE"));
@@ -200,16 +257,23 @@ void setup() {
   ledOff();
 
   //AMBIL INTERVAL PENGUKURAN
-  digitalWrite(36, HIGH); //GREEN
+  digitalWrite(38, LOW); //GREEN
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(F("TIME INTERVAL"));
+  lcd.print(F("GET CONFIG.TXT"));
+  lcd.setCursor(0, 1);
 
   //GETTING DATA INTERVAL & PHONE NUMBER
+  ledOff();
   configs();
 
   //TIME INTERVAL
+  digitalWrite(38, LOW); //GREEN
   Serial.flush();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(F("TIME INTERVAL"));
+  lcd.setCursor(0, 1);
   lcd.print(interval);
   Serial.print(F("TIME INTERVAL = "));
   Serial.print(interval);
@@ -222,7 +286,10 @@ void setup() {
     Serial.println(F(" MINUTES"));
   }
   Serial.flush();
-  delay(2000);
+  delay(1000);
+  digitalWrite(38, HIGH); //GREEN
+  delay(1000);
+  digitalWrite(38, LOW); //GREEN
   lcd.clear();
 
   //BURST INTERVAL
@@ -240,18 +307,28 @@ void setup() {
     Serial.println(F(" SECONDS"));
   }
   Serial.flush();
-  delay(2000);
+  delay(1000);
+  digitalWrite(38, HIGH); //GREEN
+  delay(1000);
+  digitalWrite(38, LOW); //GREEN
 
   //PHONE NUMBER
+  lcd.clear();
+  lcd.print(F("PHONE NUMBER"));
+  lcd.setCursor(0, 1);
+  lcd.print(noHP);
   Serial.print(F("No HP = "));
   Serial.println(noHP);
   Serial.flush();
-  delay(2000);
-  lcd.clear();
+  delay(1000);
+  digitalWrite(38, HIGH); //GREEN
+  delay(1000);
+  digitalWrite(38, LOW); //GREEN
 
   //INIT SIM800L & SEND SMS
   ledOff();
-  lcd.print(F("INIT SIM800L"));
+  lcd.clear();
+  lcd.print(F("INIT GSM MODULE"));
   Serial.println(F("INITIALIZATION SIM800L..."));
   Serial.flush();
   Serial1.flush();
@@ -270,38 +347,45 @@ void setup() {
   }
   ledOff();
   sim800l();
+  delay(1000);
+  lcd.clear();
+  lcd.print(F("CHECK BALANCE"));
+  cekkuota();
+  lcd.setCursor(0, 1);
+  lcd.print(F("FINISH!!!"));
 
   //INIT GPS
-  pinMode(47, OUTPUT); //activate GPS relay
   digitalWrite(47, HIGH);
   ledOff();
-  digitalWrite(34, HIGH);//RED
+  digitalWrite(36, HIGH);//RED
   delay(2000);
-  digitalWrite(38, HIGH);//MAGENTA
+  digitalWrite(40, HIGH);//MAGENTA
   delay(2000);
-  digitalWrite(34, LOW);//BLUE
+  digitalWrite(36, LOW);//BLUE
   delay(2000);
+
+  pinMode(3, OUTPUT); //activate WEMOS relay
+  digitalWrite(3, HIGH);
 
   Serial.println(F("INITIALIZATION GPS..."));
   Serial.flush();
   Serial2.flush();
-  GPS_ON();
+  //GPS_ON();
+
   delay(2000);
-  digitalWrite(47, LOW);
 
   //TURN OFF ALL LED
   ledOff();
-  digitalWrite(34, HIGH);
-  digitalWrite(36, HIGH);
-  digitalWrite(38, HIGH);
+  digitalWrite(36, LOW);
+  digitalWrite(38, LOW);
+  digitalWrite(40, LOW);
   lcd.clear();
 
   //NYALAKAN WEMOS
   lcd.print(F("----  OPEN  ----"));
   lcd.setCursor(0, 1);
   lcd.print(F("-  WEB SERVER  -"));
-  pinMode(46, OUTPUT); //activate WEMOS relay
-  digitalWrite(46, HIGH);
+
   delay(1000);
   Serial.println("BUKA WEBSERVER");
   Serial.println(F("123"));
@@ -316,8 +400,14 @@ void setup() {
   }
 
   Serial.println("I-GAUGE ready to record data");
+  lcd.clear();
+  lcd.print(F("SAVE SETTING"));
   //SIMPAN PARAMETER SETTING
   simpanconfigs();
+  lcd.setCursor(0, 1);
+  lcd.print(F("DONE!!!"));
+  delay(1000);
+  lcd.clear();
 
   //SET WAKTU PENGAMBILAN DATA
   waktu = interval * 60;
@@ -330,6 +420,7 @@ void setup() {
   ambil();
   Alarm.timerRepeat(interval * 60, ambil);
   Alarm.alarmRepeat(5, 0, 0, cekkuota); // 5:00am every day
+
 }
 
 void loop() {
@@ -337,14 +428,23 @@ void loop() {
 }
 
 void ledOff() {
-  digitalWrite(34, LOW);
-  digitalWrite(36, LOW);
-  digitalWrite(38, LOW);
+  digitalWrite(36, HIGH);
+  digitalWrite(38, HIGH);
+  digitalWrite(40, HIGH);
 }
 
 void bersihdata() {
   reads = 0;  reads0 = 0;  tekanan = '0';
   suhu = '0'; voltase = '0';  ampere = '0';
+}
+
+void dateTime(uint16_t* date, uint16_t* time) {
+  // call back for file timestamps
+  DateTime nows = rtc.now();
+  // return date using FAT_DATE macro to format fields
+  *date = FAT_DATE(nows.year(), nows.month(), nows.day());
+  // return time using FAT_TIME macro to format fields
+  *time = FAT_TIME(nows.hour(), nows.minute(), nows.second());
 }
 
 void lcd2digits(int number) {
@@ -376,7 +476,7 @@ void GPS_ON() {
   Serial1.flush();
   Serial2.flush();
   //GET COORDINATES
-  for (i = 0; i < 30; i++) { //180
+  for (i = 0; i < 60; i++) { //180
     displayInfo();
     if (float(hdop) <= 2.0) break;
   }
@@ -385,6 +485,7 @@ void GPS_ON() {
   ledOff();
 
   //DISPLAY LONG & LAT
+  digitalWrite(40, LOW);
   lcd.print(F("LONGITUDE"));
   Serial.flush();
   Serial1.flush();
@@ -416,7 +517,7 @@ void GPS_ON() {
   Serial.flush();
   Serial2.flush();
   lcd.setCursor(0, 1);
-  if (flon < 0)
+  if (flat < 0)
     lcd.print("S ");
   else
     lcd.print("N ");
@@ -433,11 +534,10 @@ void GPS_ON() {
   lcd.clear();
   i = '0';
   tekanan = '0';
-  index = 1;
 }
 
 void displayInfo() {
-  digitalWrite(38, HIGH); //STATUS BLUE
+  digitalWrite(40, LOW); //STATUS BLUE
   start = millis();
   do   {
     while (Serial2.available()) {
@@ -446,10 +546,11 @@ void displayInfo() {
       Serial.print(g);
     }
   }
-  while (millis() - start < 5000);
+  while (millis() - start < 1000);
   Serial.flush();
   Serial2.flush();
-  delay(2000);
+  delay(1000);
+  digitalWrite(40, HIGH);
   if (gps.location.isUpdated())  {
     flat = gps.location.lat();
     flon = gps.location.lng();
@@ -467,15 +568,15 @@ void displayInfo() {
     lcd.print(F("NO GPS DETECTED!"));
     Serial.println(F("NO GPS DETECTED!"));
     ledOff();
-    digitalWrite(34, HIGH); //RED
+    digitalWrite(36, LOW); //RED
     delay(1000);
   }
   Serial.flush();
   Serial2.flush();
-  delay(2000);//
+  delay(1000);//
 }
 
-void ConnectAT(String cmd, int t) {
+void ConnectAT(String cmd, int d) {
   i = 0;
   while (1) {
     Serial1.println(cmd);
@@ -483,7 +584,7 @@ void ConnectAT(String cmd, int t) {
       if (Serial1.find("OK"))
         i = 8;
     }
-    delay(t);
+    delay(d);
     if (i > 5) {
       break;
     }
@@ -493,7 +594,7 @@ void ConnectAT(String cmd, int t) {
     lcd.setCursor(0, 1);
     lcd.print("                ");
     lcd.setCursor(0, 1);
-    lcd.print("OK");
+    lcd.print("GSM MODULE OK!!");
     Serial.println("OK");
     Serial.flush();
     Serial1.flush();
@@ -504,13 +605,16 @@ void ConnectAT(String cmd, int t) {
     lcd.setCursor(0, 1);
     lcd.print("                ");
     lcd.setCursor(0, 1);
-    lcd.print("SIM800L ERROR");
+    lcd.print("GSM MODULE ERROR");
     Serial.println("SIM800L ERROR");
     Serial.flush();
     Serial1.flush();
-    digitalWrite(34, HIGH);
-    digitalWrite(38, HIGH);
+	if(a==5){
+    ledOff();
+    digitalWrite(36, LOW);
+    digitalWrite(40, LOW);
     while (1) {}
+	}
   }
 }
 
@@ -519,7 +623,7 @@ cops:
   filename = "";
   Serial.flush();
   Serial1.flush();
-  delay(2000);
+  delay(1000);
   Serial.println(F("AT+COPS?"));
   Serial1.println(F("AT+COPS?"));
   delay(100);
@@ -532,7 +636,7 @@ cops:
       }
     }
   }
-  delay(2000);
+  delay(1000);
   Serial.flush();
   Serial1.flush();
 
@@ -573,7 +677,6 @@ signal:
   Serial1.flush();
   delay(500);
 
-
   a = (filename.substring(0, filename.indexOf(','))).toInt();
   Serial.print(a);
   Serial.print(" ");
@@ -605,47 +708,55 @@ signal:
 
 void sim800l() { //udah fix
   lcd.clear();
-  lcd.print(F("CHECK SIM800L"));
+  lcd.print(F("CHECK GSM MODULE"));
   Serial.println(F("CHECK SIM800L"));
-  digitalWrite(38, HIGH);
-  delay(1000);
   digitalWrite(38, LOW);
   delay(1000);
+  digitalWrite(38, HIGH);
+  delay(1000);
+  
   Serial.println(F("AT+CSCLK=0"));
   Serial1.println(F("AT+CSCLK=0"));
+  bacaserial(100);
+  digitalWrite(38, LOW);
+  delay(1000);
   digitalWrite(38, HIGH);
   delay(1000);
-  digitalWrite(38, LOW);
+  
   lcd.setCursor(0, 1);
-  lcd.print(F("GSM "));
-  Serial.print(F("GSM "));
-  ConnectAT(F("AT"), 200);
-  lcd.print(y);
-  Serial.println(y);
+  for(a=0;a<6;a++){
+  ConnectAT(F("AT"), 100);
+  }
   Serial.flush();
   Serial1.flush();
-  digitalWrite(38, HIGH);
-  delay(2000);
   digitalWrite(38, LOW);
+  delay(1000);
+  digitalWrite(38, HIGH);
+  delay(1000);
+  
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
-  lcd.print(F("OPERATOR="));
+  lcd.print(F("OPS="));
   ceksim();
-  digitalWrite(38, HIGH);
-  delay(2000);
   digitalWrite(38, LOW);
+  delay(1000);
+  digitalWrite(38, HIGH);
+  delay(1000);
+  
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   lcd.print(F("SIGNAL="));
   sinyal();
-  digitalWrite(38, HIGH);
-  delay(2000);
   digitalWrite(38, LOW);
+  delay(1000);
+  digitalWrite(38, HIGH);
+  delay(1000);
+  
   Serial.println(F("AT+CMGD=1,4"));
   ConnectAT(F("AT+CMGD=1,4"), 200);
-  delay(2000);
+  delay(1000);
   lcd.clear();
   lcd.print(F("SEND SMS"));
   Serial.println(F("SEND SMS"));
@@ -656,87 +767,98 @@ void sim800l() { //udah fix
   Serial.flush();
   Serial1.flush();
   Serial.print(F("AT+CMGF=1 "));
-  ConnectAT(F("AT+CMGF=1"), 200);
-  delay(2000);
-  Serial.print(F("AT+CSCS=\"GSM\" "));
-  ConnectAT(F("AT+CSCS=\"GSM\""), 200);
+  Serial1.println(F("AT+CMGF=1"));
+  bacaserial(100);
   Serial.flush();
   Serial1.flush();
-  delay(2000);
+  delay(1000);
+  Serial.print(F("AT+CSCS=\"GSM\" "));
+  Serial.println(F("AT+CSCS=\"GSM\""));
+  bacaserial(100);
+  Serial.flush();
+  Serial1.flush();
+  delay(1000);
   y = "AT+CMGS=\"" + noHP + "\"";
   Serial.println(y);
   Serial1.println(y);
   while (Serial1.find(">") == false) {
   }
-  delay(2000);
+  delay(1000);
   start = millis();
   y = "I-GAUGE ID " + ID + " ready send data to server";
   Serial.println(y);
   Serial1.println(y);
-  delay(2000);
+  delay(1000);
   Serial1.println((char)26);
 
   //WAITING OK
   while (millis() - start <= 60000) {
     digitalWrite(38, HIGH);
     delay(300);
-    digitalWrite(38, LOW);
+    digitalWrite(38, HIGH);
     delay(300);
   }
   ledOff();
-  digitalWrite(38, HIGH); //BLUE
+  digitalWrite(38, LOW); //BLUE
   delay(5000);
-  digitalWrite(38, LOW);
-  lcd.print(F("sent"));
+  digitalWrite(38, HIGH);
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("SMS SENT"));
   Serial.println(F("sms has been sent"));
   Serial.flush();
   Serial1.flush();
   //SIM800L sleep mode
   Serial.println(F("AT+CSCLK=2"));
   Serial1.println(F("AT+CSCLK=2"));
-  delay(5000);
+  delay(1000);
 }
 
 void configs() {
-  index = 0;
+  a = 0;
   file = SD.open(F("config.txt"));
   lcd.setCursor(0, 1);
   if (file) {
     while (file.available()) {
-      next_char = file.read();
-      sdcard[index++] = next_char;
+      g = file.read();
+      sdcard[a++] = g;
     }
-
   }
   else  {
     lcd.print(F("ERROR READING"));
     Serial.println(F("ERROR READING"));
     ledOff();
     while (1) {
-      digitalWrite(34, HIGH);
-      digitalWrite(36, HIGH);
+      digitalWrite(36, LOW); //YELLOW RED
+      digitalWrite(38, LOW);
       delay(1000);
-      digitalWrite(36, LOW);
-      delay(500);
+      digitalWrite(38, HIGH);
+      delay(1000);
     }
   }
   file.close();
+
   filename = String(sdcard);
-  for ( i = 0; i < 25; i++) {
-    sdcard[i] = 0;
-    digitalWrite(38, HIGH);
-    delay(600);
-    digitalWrite(38, LOW);
-    delay(400);
+  Serial.println(filename);
+  for ( a = 0; a < sizeof(sdcard); a++) {
+    sdcard[a] = (char)0;;
+    digitalWrite(40, LOW);
+    delay(300);
+    digitalWrite(40, HIGH);
+    delay(200);
   }
-  a = filename.indexOf("#");
+
+  lcd.print(F("FINISH..."));
+  a = filename.indexOf("\r");
   interval = filename.substring(0, a).toInt();
-  b = filename.indexOf("%");
+  b = filename.indexOf("\r", a + 1);
   burst = filename.substring(a + 1, b).toInt();
-  a = filename.indexOf("&");
-  noHP = "0";//+62
-  noHP += filename.substring(b + 4, a);
+  a = filename.indexOf("\r", b + 1);
+  noHP = "";//+62
+  noHP = filename.substring(b + 2, a);
   filename = '0';
+  delay(2000);
 }
 
 void simpanconfigs() {
@@ -751,24 +873,46 @@ void simpanconfigs() {
   Serial.print("hapus config.txt    ");
   Serial.println(SD.remove("/config.txt"));
   delay(1000);
+  // set date time callback function
+  SdFile::dateTimeCallback(dateTime);
   //ISI dengan data baru
   file = SD.open("/config.txt", FILE_WRITE);
   Serial.println(file);
-  file.print(interval);
-  file.println("#");
-  file.print(burst);
-  file.println("%");
-  file.print(noHP);
-  file.println("&");
+  file.println(interval);
+  file.println(burst);
+  file.println(noHP);
   file.close();
   Serial.println(F("config has been changed"));
 
 }
 
+void gpsdata() {
+  start = millis();
+  do   {
+    while (Serial2.available()) {
+      g = Serial2.read();
+      gps.encode(g);
+      Serial.print(g);
+    }
+  }
+  while (millis() - start < 1000);
+  Serial.flush();
+  Serial2.flush();
+  if (gps.location.isUpdated())  {
+    flat = gps.location.lat();
+    flon = gps.location.lng();
+    hdop = float(gps.hdop.value()) / 100.00;
+  }
+  if (gps.charsProcessed() < 10)  {
+  }
+  }
+
 void ambil() {
   Alarm.delay(0);
   ledOff();
-  digitalWrite(36, HIGH);//GREEN
+  digitalWrite(38, LOW);//GREEN
+  lcd.clear();
+  lcd.print(F("--  GET DATA  --"));
   //WAKE UP SIM800L
   Serial.println(F("AT+CSCLK=0"));
   Serial1.println(F("AT+CSCLK=0"));
@@ -787,11 +931,16 @@ void ambil() {
 
   lcd.clear();
 
+  //ambil data GPS
+  for(i=0;i<2;i++){
+	  gpsdata();
+  }
+  
   //ambil data tekanan, arus, dan voltase
   for (i = 0; i < burst; i++) {
-    digitalWrite(36, HIGH);
-    reads += analogRead(A1); //tekanan
-    reads0 += analogRead(A0); //voltase & arus
+    digitalWrite(38, LOW);
+    reads += ads.readADC_SingleEnded(pressure); //tekanan
+    reads0 += ads.readADC_SingleEnded(arus); //arus
     nows = rtc.now();
     lcd.setCursor(3, 0);
     lcd.print(nows.year());   lcd.write('/');
@@ -802,16 +951,17 @@ void ambil() {
     lcd2digits(nows.minute());  lcd.write(':');
     lcd2digits(nows.second());
     delay(500);
-    digitalWrite(36, LOW);
+    digitalWrite(38, HIGH);
     delay(500);
   }
 
-  digitalWrite(36, LOW);
+  digitalWrite(38, LOW);
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(F("PRES = "));
+  lcd.print(F("VOLTAGE = "));
   lcd.setCursor(0, 1);
-  lcd.print(F("TEMP  = "));
+  lcd.print(F("CURRENT = "));
+
 
   // KONVERSI
   voltase = ((float)reads / (float)burst) * 0.1875 / 1000.0000; // nilai voltase dari nilai DN
@@ -822,32 +972,47 @@ void ambil() {
   voltase = voltase / 1000.00;
   sensors.requestTemperatures();
   suhu = sensors.getTempCByIndex(0);
+  voltase = float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 5.325443787;
+  if (voltase >= 8.00) {
+    digitalWrite(32, HIGH);
+    digitalWrite(34, HIGH);
+    digitalWrite(34, LOW);
+    source = "PLN";
+  }
+  if (voltase < 8.00) {
+    digitalWrite(32, HIGH);
+    digitalWrite(34, HIGH);
+    digitalWrite(32, LOW);
+    source = "BATTERY";
+  }
 
   //tampilkan data ke LCD
-  lcd.print(tekanan, 2);
-  lcd.setCursor(13, 0);
-  lcd.print(F("bar"));
-  lcd.print(suhu, 2);
-  lcd.setCursor(14, 1);
-  lcd.print(char(223));
-  lcd.setCursor(15, 1);
-  lcd.print(F("C"));
-  delay(500);
-  digitalWrite(36, LOW);
-  delay(500);
-  lcd.clear();
-  digitalWrite(36, HIGH);
-  lcd.print(F("VOLTAGE = "));
+  lcd.setCursor(10,0);
   lcd.print(voltase, 2);
   lcd.setCursor(15, 0);
   lcd.print(F("V"));
-  lcd.setCursor(0, 1);
-  lcd.print(F("CURRENT = "));
+  lcd.setCursor(10,1);
   lcd.print(ampere, 2);
   lcd.setCursor(15, 1);
   lcd.print(F("A"));
+  delay(1000);
+  digitalWrite(38, HIGH);
+  delay(1000);
+  lcd.clear();
+  digitalWrite(38, LOW);
+  lcd.print(F("PRES = "));
+  lcd.print(tekanan, 2);
+  lcd.setCursor(13, 0);
+  lcd.print(F("bar"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("TEMP = "));
+  lcd.print(suhu, 2);
+  lcd.setCursor(13, 1);
+  lcd.print(char(223));
+  lcd.setCursor(14, 1);
+  lcd.print(F("C"));
   delay(500);
-  digitalWrite(36, LOW);
+  digitalWrite(38, HIGH);
   delay(500);
 
 
@@ -900,6 +1065,7 @@ void ambil() {
   Serial.print(suhu, 2);    Serial.print('|');
   Serial.print(voltase, 2); Serial.print('|');
   Serial.print(ampere, 2);  Serial.print('|');
+  Serial.print(source);      Serial.print('|');
   Serial.print(burst);      Serial.print('|');
   Serial.print(interval);   Serial.print('|');
   Serial.print(noHP);       Serial.print('|');
@@ -909,7 +1075,7 @@ void ambil() {
   Serial.flush();
 
   //SAVE DATA
-  digitalWrite(36, HIGH);
+  digitalWrite(38, LOW);
   filename = "";
   filename = String(tahun);
   if (bulan < 10) {
@@ -928,15 +1094,17 @@ void ambil() {
 
   filename.toCharArray(str, 13);
   i = SD.exists(str);
+  // set date time callback function
+  SdFile::dateTimeCallback(dateTime);
   file = SD.open(str, FILE_WRITE);
   if (i == 0) {
     file.print(F("DATE (YYYY-MM-DD HH:MM:SS)| LONGITUDE (DD.DDDDDD°) | LATITUDE (DD.DDDDDD°) | "));
-    file.print(F("PRESSURE (BAR) | TEMPERATURE (°C) | VOLTAGE (VOLT)| CURRENT (AMPERE) | "));
+    file.print(F("PRESSURE (BAR) | TEMPERATURE (°C) | VOLTAGE (VOLT)| CURRENT (AMPERE) | SOURCE | "));
     file.println(F("BURST INTERVAL | DATA INTERVAL | PHONE NUMBER | OPERATOR | SERVER CODE | NETWORK"));
 
   }
   //simpan data ke SD CARD
-  //FORMAT DATA = DATE | LONGITUDE | LATITUDE | PRESSURE | TEMPERATURE | VOLTAGE | CURRENT |
+  //FORMAT DATA = DATE | LONGITUDE | LATITUDE | PRESSURE | TEMPERATURE | VOLTAGE | CURRENT | SOURCE | 
   //            BURST INTERVAL | DATA INTERVAL | PHONE NUMBER | OPERATOR | SERVER CODE | NETWORK
   file.print(tahun);  file.print('-');
   save2digits(bulan); file.print('-');
@@ -950,6 +1118,7 @@ void ambil() {
   file.print(suhu, 2);    file.print('|');
   file.print(voltase, 2);   file.print('|');
   file.print(ampere, 2);  file.print('|');
+  file.print(source);      file.print('|');
   file.print(burst);      file.print('|');
   file.print(interval);   file.print('|');
   file.print(noHP);     file.print('|');
@@ -960,11 +1129,11 @@ void ambil() {
   file.close();
   //bersih variabel
   bersihdata();
-  digitalWrite(36, LOW);
+  digitalWrite(38, HIGH);
   Serial.println(F("AT+CSCLK=2"));
   Serial1.println(F("AT+CSCLK=2"));
   delay(1000);
-  digitalWrite(36, HIGH);
+  digitalWrite(38, LOW);
 }
 
 void web() {
@@ -988,14 +1157,15 @@ void web() {
   jam = nows.hour();
   menit = nows.minute();
   detik = nows.second();
-  reads = ads.readADC_SingleEnded(1);
+  reads = ads.readADC_SingleEnded(pressure);
   voltase = reads * 0.1875 / 1000.0000;           // nilai voltase dari nilai DN
   tekanan = (300.00 * voltase - 150.00) * 0.01 + float(offset); // bar
   sensors.requestTemperatures();
   suhu = sensors.getTempCByIndex(0);
-  reads0 = ads.readADC_SingleEnded(0);
+  reads0 = ads.readADC_SingleEnded(arus);
   voltase = reads0 * 0.1875;
   ampere = ((voltase - ACSoffset) / mVperAmp);
+  voltase = float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 5.325443787;
 
   if (operators == "") {
     operators = "NONE";
@@ -1119,13 +1289,20 @@ serve:
   Serial.println(filename);
   if (filename.toInt() == 1) {
     //kirim data ke server
-    delay(1000);
+	ledOff();
+	digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     Serial.println(F("AT+CIPSHUT"));
     Serial1.println(F("AT+CIPSHUT"));
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //ATUR APN SESUAI DENGAN PROVIDER
     apn(operators);
     //CONNECTION TYPE
@@ -1134,7 +1311,10 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //APN ID
     result = "AT+SAPBR=3,1,\"APN\",\"" + APN + "\"";
     Serial.println(result);
@@ -1142,7 +1322,10 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //APN USER
     result = "AT+SAPBR=3,1,\"USER\",\"" + USER + "\"";
     Serial.println(result);
@@ -1150,7 +1333,10 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //APN PASSWORD
     result = "AT+SAPBR=3,1,\"PWD\",\"" + PWD + "\"";
     Serial.println(result);
@@ -1158,7 +1344,10 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //OPEN BEARER
     start = millis();
     Serial.println(F("AT+SAPBR=1,1"));
@@ -1166,7 +1355,10 @@ serve:
     bacaserial(1000);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //QUERY BEARER
     Serial.println(F("AT+SAPBR=2,1"));
     Serial1.println(F("AT+SAPBR=2,1"));
@@ -1185,7 +1377,10 @@ serve:
     }
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     //TERMINATE HTTP SERVICE
     Serial.println(F("AT+HTTPTERM"));
     Serial1.println(F("AT+HTTPTERM"));
@@ -1215,7 +1410,7 @@ serve:
       Serial.flush();
       Serial1.flush();
       //http://www.mantisid.id/api/product/pdam_dt_c.php?="Data":"'2017-11-05 10:00:00', '111.111111', '-6.2222222', '400.33', '34.00', '5.05', '1.66', 'pdam_001', '5', '3'"
-      //Formatnya Date, longitude, latitude, pressure, temperature, volt, ampere, id, burst interval, data interval
+      //Formatnya Date, longitude, latitude, pressure, temperature, volt, ampere, source, id, burst interval, data interval
       y = "{\"Data\":\"'";
       y += String(nows.year()) + "-";
       if (bulan < 10) {
@@ -1255,6 +1450,7 @@ serve:
       y += String(suhu, 2) + "','";
       y += String(voltase, 2) + "','";
       y += String(ampere, 2) + "','";
+      y += String(source) + "','";
       y += String(ID) + "','";
       y += String(burst) + "','";
       y += String(interval) + "'\"}";
@@ -1270,8 +1466,8 @@ serve:
       detik = nows.second();
 
       //SET HTTP URL
-      Serial.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
-      Serial1.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_dt_c.php\""));
+      Serial.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_sim_c.php\""));
+      Serial1.println(F("AT+HTTPPARA=\"URL\",\"http://www.mantisid.id/api/product/pdam_sim_c.php\""));
       bacaserial(1000);
       Serial.flush();
       Serial1.flush();
@@ -1318,6 +1514,8 @@ serve:
       result = "pulsa.ab";
 
       result.toCharArray(str, 13);
+      // set date time callback function
+      SdFile::dateTimeCallback(dateTime);
       file = SD.open(str, FILE_WRITE);
       file.println(y);
       file.flush();
@@ -1341,7 +1539,10 @@ serve:
 
     //HTTP METHOD ACTION
     filename = "";
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     start = millis();
     Serial.println(F("AT+HTTPACTION=1"));
     Serial1.println(F("AT+HTTPACTION=1"));
@@ -1354,31 +1555,47 @@ serve:
     }
     Serial.flush();
     Serial1.flush();
-
+    a = '0';
+    b = '0';
     //CHECK KODE HTTPACTION
-    while ((start + 60000) > millis()) {
+    while ((start + 20000) > millis()) {
       while (Serial1.available() > 0) {
         g = Serial1.read();
         filename += g;
         Serial.print(g);
+        a = filename.indexOf(":");
+        b = filename.length();
+        if (b - a > 12)break;
       }
+      if (b - a > 12) break;
     }
-
+    Serial.println();
+    Serial.flush();
+    Serial1.flush();
+    a = '0';
+    b = '0';
+    delay(500);
     Serial.println(F("AT+HTTPTERM"));
     Serial1.println(F("AT+HTTPTERM"));
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    delay(1000);
+    digitalWrite(38,LOW);
+    delay(500);
+    digitalWrite(38, HIGH);
+    delay(500);
     Serial.println(F("AT+SAPBR=0,1"));
     Serial1.println(F("AT+SAPBR=0,1"));
     while (start + 10000 > millis()) {
       while (Serial1.available() > 0) {
         if (Serial1.find("OK")) {
+          a = 1;
           break;
         }
       }
+      if (a = 1) break;
     }
+    a = '0';
     Serial.println("");
     Serial.println(filename);
     Serial.flush();
@@ -1715,68 +1932,5 @@ down:
   Serial.println();
   Serial.println(sms);
   Serial.println(kuota);
-  //sendSMS();
-  sendkuota();
-}
-
-void sendSMS() {
-  ledOff();
-  Serial.flush();
-  Serial1.flush();
-  Serial.println(F("AT+CMGD=1,4"));
-  Serial1.println(F("AT+CMGD=1,4"));
-  bacaserial(200);
-  Serial.flush();
-  Serial1.flush();
-  delay(1000);
-  Serial.println(F("AT+CMGF=1"));
-  Serial1.println(F("AT+CMGF=1"));
-  bacaserial(200);
-  Serial.flush();
-  Serial1.flush();
-  delay(2000);
-
-  Serial.println(F("AT+CSCS=\"GSM\""));
-  Serial1.println(F("AT+CSCS=\"GSM\""));
-  bacaserial(200);
-  Serial.flush();
-  Serial1.flush();
-  delay(2000);
-
-  y = "AT+CMGS=\"" + noHP + "\"";
-  Serial.println(y);
-  Serial1.println(y);
-  while (Serial1.find(">") == false) {
-  }
-  delay(2000);
-
-  start = millis();
-  Serial.println(sms);
-  Serial.println(kuota);
-  Serial1.println(sms);
-  Serial1.println(kuota);
-  delay(2000);
-  Serial1.println((char)26);
-  //WAITING OK
-  while (millis() - start <= 60000) {
-    while (Serial1.available()) {
-      Serial.write(Serial1.read());
-    }
-  }
-
-  ledOff();
-  digitalWrite(38, HIGH); //BLUE
-  delay(3000);
-  digitalWrite(38, LOW);
-  lcd.print(F("sent"));
-  Serial.println(F("sms has been sent"));
-  Serial.flush();
-  Serial1.flush();
-  //SIM800L sleep mode
-  Serial.println(F("AT+CSCLK=2"));
-  Serial1.println(F("AT+CSCLK=2"));
-}
-
-void sendkuota() {
-  server(2);
+  server(2); //send kuota to server
 }
