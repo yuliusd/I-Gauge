@@ -1,11 +1,14 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <DNSServer.h>
 
-const char *ssid = "hollandaesp"; //must at least 8 character
+const char *ssid = "I-GAUGE PDAM BOGOR1"; //must at least 8 character
 const char *password = "12345678";//must at least 8 character
 ESP8266WebServer server(80);
 IPAddress    apIP(10, 10, 10, 1);
+DNSServer dnsServer;
+const byte DNS_PORT = 53;
 
 byte id = 1;
 byte setting = 0;
@@ -17,7 +20,7 @@ char g;
 unsigned long start;
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(115200);
   delay(1000);
   Serial.println();
   Serial.println("Configuring access point...");
@@ -28,6 +31,11 @@ void setup() {
   WiFi.softAP(ssid, password);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   IPAddress myIP = WiFi.softAPIP();
+  dnsServer.setTTL(300);
+  dnsServer.setErrorReplyCode(DNSReplyCode::ServerFailure);
+  dnsServer.start(DNS_PORT, "www.i-gauge.co.id", apIP);
+
+  
   Serial.println(F("waiting for connection"));
 
   while (Serial.find("123") == false) {
@@ -37,9 +45,11 @@ void setup() {
   //server.sendHeader("Access-Control-Allow-Origin", "*");
   server.on("/", handleroot);
   server.begin();
+
 }
 
 void loop() {
+  dnsServer.processNextRequest();
   server.handleClient();
 }
 
