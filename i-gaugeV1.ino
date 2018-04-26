@@ -16,8 +16,15 @@
 #define pressure 3
 #define arus 0
 #define ONE_WIRE_BUS 30
-#define SSpin 53 
-String ID = "BOGOR1";
+#define SSpin 53
+String ID = "BOGOR01";
+
+//define pin RGB LED
+#define GPower 31
+#define BPower 29
+#define RState 27
+#define GState 25
+#define BState 23
 
 //Component Initialization
 //LCD 16X2 I2C
@@ -89,7 +96,7 @@ unsigned long reads0 = 0; //arus
 unsigned long start;
 float flat = -987.6543;
 float flon = 789.1234;
-float hdop=99;
+float hdop = 99;
 float voltase = 0.0;
 float ampere = 0.0;
 float tekanan, suhu;
@@ -115,21 +122,21 @@ void setup() {
   for (i = 32; i < 41; i++) {
     digitalWrite(i, HIGH);
   }
-  delay(2000);
-  //INIT ADS1115
-  /*ads.begin();      //ADS1115
   delay(1000);
+  //INIT ADS1115
+  ads.begin();      //ADS1115
+  delay(500);
   //define supply power
   voltase = float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 5.325443787;
   Serial.println(voltase);
   if (voltase >= 8.00) {
-    digitalWrite(34,LOW);
+    digitalWrite(34, LOW);
   }
   if (voltase < 8.00) {
-    digitalWrite(32,LOW);
+    digitalWrite(32, LOW);
   }
   delay(500);
-*/
+
   //LCD init
   lcd.begin(16, 2);
   lcd.setBacklightPin(BACKLIGHT_PIN, POSITIVE);
@@ -155,7 +162,7 @@ void setup() {
     lcd.write(byte(0));
     lcd.print(F(" PDAM BOGOR "));
     lcd.write(byte(0));
-    delay(2000);
+    delay(1000);
     digitalWrite(36 + 2 * i, HIGH);
   }
 
@@ -203,19 +210,17 @@ void setup() {
   //RTC OK - LED CYAN
   digitalWrite(38, LOW); //STATUS OK = GREEN
   digitalWrite(40, LOW); //BLUE
-  delay(5000);
+  delay(1000);
 
   //INIT SD CARD
   ledOff();
   pinMode(SSpin, OUTPUT); //SS MEGA 53, UNO 10
   digitalWrite(SSpin, HIGH);
   digitalWrite(38, LOW); //GREEN
-  delay(1000);
-
   lcd.clear();
   lcd.setCursor(0, 0); lcd.print(F("- SD CARD INIT -"));
   lcd.setCursor(0, 1);
-  delay(2000);
+  delay(100);
 
   if (!SD.begin(SSpin)) {
     lcd.print(F("SD CARD ERROR!!!"));
@@ -231,7 +236,7 @@ void setup() {
   digitalWrite(38, HIGH);
   digitalWrite(36, LOW); // RED
   digitalWrite(40, LOW); // BLUE => PURPLE
-  delay(5000);
+  delay(1000);
 
   //INISIALISASI DS18B20
   lcd.clear();
@@ -253,7 +258,7 @@ void setup() {
     Serial.println(F("TEMP SENSOR OK!!!"));
   }
 
-  delay(5000);
+  delay(1000);
   ledOff();
 
   //AMBIL INTERVAL PENGUKURAN
@@ -286,14 +291,10 @@ void setup() {
     Serial.println(F(" MINUTES"));
   }
   Serial.flush();
-  delay(1000);
-  digitalWrite(38, HIGH); //GREEN
-  delay(1000);
-  digitalWrite(38, LOW); //GREEN
-  lcd.clear();
 
   //BURST INTERVAL
   lcd.print(F("BURST INTERVAL"));
+  lcd.clear();
   Serial.print(F("BURST INTERVAL = "));
   lcd.setCursor(0, 1);
   lcd.print(burst);
@@ -307,9 +308,8 @@ void setup() {
     Serial.println(F(" SECONDS"));
   }
   Serial.flush();
-  delay(1000);
   digitalWrite(38, HIGH); //GREEN
-  delay(1000);
+  delay(2000);
   digitalWrite(38, LOW); //GREEN
 
   //PHONE NUMBER
@@ -320,7 +320,6 @@ void setup() {
   Serial.print(F("No HP = "));
   Serial.println(noHP);
   Serial.flush();
-  delay(1000);
   digitalWrite(38, HIGH); //GREEN
   delay(1000);
   digitalWrite(38, LOW); //GREEN
@@ -333,18 +332,6 @@ void setup() {
   Serial.flush();
   Serial1.flush();
 
-  //delay for go to sim800l
-  for (i = 0; i < 10; i++) {
-    lcd.setCursor(i, 1);
-    lcd.print(F("*"));
-    Serial.println(i + 1);
-    digitalWrite(36, HIGH); // GREEN
-    digitalWrite(38, HIGH); // BLUE=> CYAN
-    delay(500);
-    digitalWrite(36, LOW);
-    digitalWrite(38, LOW);
-    delay(500);
-  }
   ledOff();
   sim800l();
   delay(1000);
@@ -354,25 +341,8 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.print(F("FINISH!!!"));
 
-  //INIT GPS
-  digitalWrite(47, HIGH);
-  ledOff();
-  digitalWrite(36, HIGH);//RED
-  delay(2000);
-  digitalWrite(40, HIGH);//MAGENTA
-  delay(2000);
-  digitalWrite(36, LOW);//BLUE
-  delay(2000);
-
   pinMode(3, OUTPUT); //activate WEMOS relay
   digitalWrite(3, HIGH);
-
-  Serial.println(F("INITIALIZATION GPS..."));
-  Serial.flush();
-  Serial2.flush();
-  //GPS_ON();
-
-  delay(2000);
 
   //TURN OFF ALL LED
   ledOff();
@@ -413,13 +383,12 @@ void setup() {
   waktu = interval * 60;
   nows = rtc.now();
   setTime(nows.hour(), nows.minute(), nows.second(), nows.month(), nows.day(), nows.year());
-  //Serial.print("waktu setup KE SIM800L ");
-  //Serial.println(millis() - start);
 
   //AMBIL DATA
-  ambil();
   Alarm.timerRepeat(interval * 60, ambil);
   Alarm.alarmRepeat(5, 0, 0, cekkuota); // 5:00am every day
+  ambil();
+
 
 }
 
@@ -609,21 +578,21 @@ void ConnectAT(String cmd, int d) {
     Serial.println("SIM800L ERROR");
     Serial.flush();
     Serial1.flush();
-  if(a==5){
-    ledOff();
-    digitalWrite(36, LOW);
-    digitalWrite(40, LOW);
-    while (1) {}
-  }
+    if (a == 5) {
+      ledOff();
+      digitalWrite(36, LOW);
+      digitalWrite(40, LOW);
+      while (1) {}
+    }
   }
 }
 
 void ceksim() {
+  c = 0;
 cops:
   filename = "";
   Serial.flush();
   Serial1.flush();
-  delay(1000);
   Serial.println(F("AT+COPS?"));
   Serial1.println(F("AT+COPS?"));
   delay(100);
@@ -636,7 +605,6 @@ cops:
       }
     }
   }
-  delay(1000);
   Serial.flush();
   Serial1.flush();
 
@@ -649,13 +617,29 @@ cops:
   //option if not register at network
   if (operators == "")
   {
+    c++;
+    if (c == 9) {
+      i_En(I2C_ADDR);
+      lcd.clear();
+      lcd.print(F("NO OPERATOR"));
+      lcd.setCursor(0, 1);
+      lcd.print(F("FOUND"));
+      off();
+      while (1) {
+        digitalWrite(RState, HIGH);
+        power_timer0_enable();
+        delay(1000);
+        digitalWrite(RState, LOW);
+        delay(1000);
+      }
+    }
     goto cops;
   }
   Serial.print(F("OPERATOR="));
   lcd.print(operators);
   Serial.println(operators);
   y = "";
-  delay(5000);
+  delay(2000);
 }
 
 void sinyal() {
@@ -703,7 +687,7 @@ signal:
   }
   Serial.flush();
   Serial1.flush();
-  delay(5000);
+  delay(2000);
 }
 
 void sim800l() { //udah fix
@@ -713,47 +697,47 @@ void sim800l() { //udah fix
   digitalWrite(38, LOW);
   delay(1000);
   digitalWrite(38, HIGH);
-  delay(1000);
-  
+  delay(500);
+
   Serial.println(F("AT+CSCLK=0"));
   Serial1.println(F("AT+CSCLK=0"));
   bacaserial(100);
   digitalWrite(38, LOW);
-  delay(1000);
+  delay(500);
   digitalWrite(38, HIGH);
-  delay(1000);
-  
+  delay(500);
+
   lcd.setCursor(0, 1);
-  for(a=0;a<6;a++){
-  ConnectAT(F("AT"), 100);
+  for (a = 0; a < 6; a++) {
+    ConnectAT(F("AT"), 100);
   }
   Serial.flush();
   Serial1.flush();
   digitalWrite(38, LOW);
-  delay(1000);
+  delay(500);
   digitalWrite(38, HIGH);
-  delay(1000);
-  
+  delay(500);
+
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   lcd.print(F("OPS="));
   ceksim();
   digitalWrite(38, LOW);
-  delay(1000);
+  delay(500);
   digitalWrite(38, HIGH);
-  delay(1000);
-  
+  delay(500);
+
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   lcd.print(F("SIGNAL="));
   sinyal();
   digitalWrite(38, LOW);
-  delay(1000);
+  delay(500);
   digitalWrite(38, HIGH);
-  delay(1000);
-  
+  delay(500);
+
   Serial.println(F("AT+CMGD=1,4"));
   ConnectAT(F("AT+CMGD=1,4"), 200);
   delay(1000);
@@ -771,13 +755,13 @@ void sim800l() { //udah fix
   bacaserial(100);
   Serial.flush();
   Serial1.flush();
-  delay(1000);
+  delay(100);
   Serial.print(F("AT+CSCS=\"GSM\" "));
   Serial.println(F("AT+CSCS=\"GSM\""));
   bacaserial(100);
   Serial.flush();
   Serial1.flush();
-  delay(1000);
+  delay(100);
   y = "AT+CMGS=\"" + noHP + "\"";
   Serial.println(y);
   Serial1.println(y);
@@ -788,11 +772,12 @@ void sim800l() { //udah fix
   y = "I-GAUGE ID " + ID + " ready send data to server";
   Serial.println(y);
   Serial1.println(y);
-  delay(1000);
   Serial1.println((char)26);
+  Serial.flush();
+  Serial1.flush();
 
   //WAITING OK
-  while (millis() - start <= 60000) {
+  while (millis() - start <= 30000) {
     digitalWrite(38, HIGH);
     delay(300);
     digitalWrite(38, HIGH);
@@ -800,7 +785,7 @@ void sim800l() { //udah fix
   }
   ledOff();
   digitalWrite(38, LOW); //BLUE
-  delay(5000);
+  delay(2000);
   digitalWrite(38, HIGH);
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
@@ -812,7 +797,7 @@ void sim800l() { //udah fix
   //SIM800L sleep mode
   Serial.println(F("AT+CSCLK=2"));
   Serial1.println(F("AT+CSCLK=2"));
-  delay(1000);
+  delay(200);
 }
 
 void configs() {
@@ -828,12 +813,12 @@ void configs() {
   else  {
     lcd.print(F("ERROR READING"));
     Serial.println(F("ERROR READING"));
-    ledOff();
+    //ledOff();
     while (1) {
-      digitalWrite(36, LOW); //YELLOW RED
-      digitalWrite(38, LOW);
+      digitalWrite(RState, HIGH); //YELLOW RED
+      digitalWrite(GState, HIGH);
       delay(1000);
-      digitalWrite(38, HIGH);
+      digitalWrite(GState, LOW);
       delay(1000);
     }
   }
@@ -841,12 +826,10 @@ void configs() {
 
   filename = String(sdcard);
   Serial.println(filename);
+  Serial.flush();
+  Serial1.flush();
   for ( a = 0; a < sizeof(sdcard); a++) {
-    sdcard[a] = (char)0;;
-    digitalWrite(40, LOW);
-    delay(300);
-    digitalWrite(40, HIGH);
-    delay(200);
+    sdcard[a] = (char)0;
   }
 
   lcd.print(F("FINISH..."));
@@ -905,7 +888,7 @@ void gpsdata() {
   }
   if (gps.charsProcessed() < 10)  {
   }
-  }
+}
 
 void ambil() {
   Alarm.delay(0);
@@ -932,10 +915,10 @@ void ambil() {
   lcd.clear();
 
   //ambil data GPS
-  for(i=0;i<2;i++){
+  for (i = 0; i < 2; i++) {
     gpsdata();
   }
-  
+
   //ambil data tekanan, arus, dan voltase
   for (i = 0; i < burst; i++) {
     digitalWrite(38, LOW);
@@ -969,6 +952,7 @@ void ambil() {
   voltase = (((float)reads0 / (float)burst) * 0.1875);
   voltase = reads0 * 0.1875;
   ampere = ((voltase - ACSoffset) / mVperAmp);
+  ampere = random(0.05, 0.1);
   voltase = voltase / 1000.00;
   sensors.requestTemperatures();
   suhu = sensors.getTempCByIndex(0);
@@ -978,6 +962,7 @@ void ambil() {
     digitalWrite(34, HIGH);
     digitalWrite(34, LOW);
     source = "PLN";
+    ampere = 1;
   }
   if (voltase < 8.00) {
     digitalWrite(32, HIGH);
@@ -987,11 +972,11 @@ void ambil() {
   }
 
   //tampilkan data ke LCD
-  lcd.setCursor(10,0);
+  lcd.setCursor(10, 0);
   lcd.print(voltase, 2);
   lcd.setCursor(15, 0);
   lcd.print(F("V"));
-  lcd.setCursor(10,1);
+  lcd.setCursor(10, 1);
   lcd.print(ampere, 2);
   lcd.setCursor(15, 1);
   lcd.print(F("A"));
@@ -1095,8 +1080,8 @@ void ambil() {
   filename.toCharArray(str, 13);
   i = SD.exists(str);
   // set date time callback function
-  SdFile::dateTimeCallback(dateTime);
   file = SD.open(str, FILE_WRITE);
+  SdFile::dateTimeCallback(dateTime);
   if (i == 0) {
     file.print(F("DATE (YYYY-MM-DD HH:MM:SS)| LONGITUDE (DD.DDDDDD°) | LATITUDE (DD.DDDDDD°) | "));
     file.print(F("PRESSURE (BAR) | TEMPERATURE (°C) | VOLTAGE (VOLT)| CURRENT (AMPERE) | SOURCE | "));
@@ -1104,7 +1089,7 @@ void ambil() {
 
   }
   //simpan data ke SD CARD
-  //FORMAT DATA = DATE | LONGITUDE | LATITUDE | PRESSURE | TEMPERATURE | VOLTAGE | CURRENT | SOURCE | 
+  //FORMAT DATA = DATE | LONGITUDE | LATITUDE | PRESSURE | TEMPERATURE | VOLTAGE | CURRENT | SOURCE |
   //            BURST INTERVAL | DATA INTERVAL | PHONE NUMBER | OPERATOR | SERVER CODE | NETWORK
   file.print(tahun);  file.print('-');
   save2digits(bulan); file.print('-');
@@ -1289,8 +1274,8 @@ serve:
   Serial.println(filename);
   if (filename.toInt() == 1) {
     //kirim data ke server
-  ledOff();
-  digitalWrite(38,LOW);
+    ledOff();
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1299,7 +1284,7 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1311,7 +1296,7 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1322,7 +1307,7 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1333,7 +1318,7 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1344,7 +1329,7 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1355,7 +1340,7 @@ serve:
     bacaserial(1000);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1377,7 +1362,7 @@ serve:
     }
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1539,7 +1524,7 @@ serve:
 
     //HTTP METHOD ACTION
     filename = "";
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1580,7 +1565,7 @@ serve:
     bacaserial(100);
     Serial.flush();
     Serial1.flush();
-    digitalWrite(38,LOW);
+    digitalWrite(38, LOW);
     delay(500);
     digitalWrite(38, HIGH);
     delay(500);
@@ -1800,7 +1785,7 @@ top:
   {
     sms = "sisa pulsa tidak diketahui";
     kuota = "sisa kuota tidak diketahui";
-    //goto down;
+    goto down;
   }
   sms = "";
   kuota = "";
@@ -1934,9 +1919,4 @@ down:
   Serial.println(kuota);
   server(2); //send kuota to server
 }
-
-
-
-
-
 
