@@ -291,7 +291,10 @@ void setup() {
     Serial.println(F(" MINUTES"));
   }
   Serial.flush();
-
+  digitalWrite(38, HIGH); //GREEN
+  delay(2000);
+  digitalWrite(38, LOW); //GREEN
+  
   //BURST INTERVAL
   lcd.print(F("BURST INTERVAL"));
   lcd.clear();
@@ -639,7 +642,6 @@ cops:
   lcd.print(operators);
   Serial.println(operators);
   y = "";
-  delay(2000);
 }
 
 void sinyal() {
@@ -687,7 +689,6 @@ signal:
   }
   Serial.flush();
   Serial1.flush();
-  delay(2000);
 }
 
 void sim800l() { //udah fix
@@ -695,14 +696,9 @@ void sim800l() { //udah fix
   lcd.print(F("CHECK GSM MODULE"));
   Serial.println(F("CHECK SIM800L"));
   digitalWrite(38, LOW);
-  delay(1000);
-  digitalWrite(38, HIGH);
-  delay(500);
-
   Serial.println(F("AT+CSCLK=0"));
   Serial1.println(F("AT+CSCLK=0"));
   bacaserial(100);
-  digitalWrite(38, LOW);
   delay(500);
   digitalWrite(38, HIGH);
   delay(500);
@@ -713,18 +709,13 @@ void sim800l() { //udah fix
   }
   Serial.flush();
   Serial1.flush();
-  digitalWrite(38, LOW);
-  delay(500);
-  digitalWrite(38, HIGH);
-  delay(500);
-
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   lcd.print(F("OPS="));
-  ceksim();
   digitalWrite(38, LOW);
-  delay(500);
+  ceksim();
+  delay(1500);
   digitalWrite(38, HIGH);
   delay(500);
 
@@ -732,15 +723,15 @@ void sim800l() { //udah fix
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   lcd.print(F("SIGNAL="));
-  sinyal();
   digitalWrite(38, LOW);
-  delay(500);
+  sinyal();  
+  delay(1500);
   digitalWrite(38, HIGH);
   delay(500);
 
   Serial.println(F("AT+CMGD=1,4"));
   ConnectAT(F("AT+CMGD=1,4"), 200);
-  delay(1000);
+  delay(500);
   lcd.clear();
   lcd.print(F("SEND SMS"));
   Serial.println(F("SEND SMS"));
@@ -767,7 +758,7 @@ void sim800l() { //udah fix
   Serial1.println(y);
   while (Serial1.find(">") == false) {
   }
-  delay(1000);
+  delay(500);
   start = millis();
   y = "I-GAUGE ID " + ID + " ready send data to server";
   Serial.println(y);
@@ -841,7 +832,7 @@ void configs() {
   noHP = "";//+62
   noHP = filename.substring(b + 2, a);
   filename = '0';
-  delay(2000);
+  delay(1000);
 }
 
 void simpanconfigs() {
@@ -852,10 +843,9 @@ void simpanconfigs() {
   //file.close();
   Serial.print("Cek apa ada file config.txt     ");
   Serial.println(SD.exists("/config.txt"));
-  delay(1000);
   Serial.print("hapus config.txt    ");
   Serial.println(SD.remove("/config.txt"));
-  delay(1000);
+  delay(100);
   // set date time callback function
   SdFile::dateTimeCallback(dateTime);
   //ISI dengan data baru
@@ -866,7 +856,6 @@ void simpanconfigs() {
   file.println(noHP);
   file.close();
   Serial.println(F("config has been changed"));
-
 }
 
 void gpsdata() {
@@ -1919,9 +1908,4 @@ down:
   Serial.println(kuota);
   server(2); //send kuota to server
 }
-
-
-
-
-
 
