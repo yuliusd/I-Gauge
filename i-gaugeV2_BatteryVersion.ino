@@ -14,13 +14,13 @@
 #include <avr/power.h>
 
 //Component Initialization
-String ID = "BOGOR05";
+String ID = "BOGOR04";
 #define I2C_ADDR    0x27 //0X3F
-#define ONE_WIRE_BUS 3
+#define ONE_WIRE_BUS 43
 #define ads_addr 0x48
 #define rtc_addr 0x68
 #define arus 0
-#define tegangan 2
+#define tegangan 1
 #define pressure 3
 #define GPower 31
 #define BPower 29
@@ -115,17 +115,11 @@ void setup() {
   keep_SPCR = SPCR;
   off();
 
-  s_on();
-  Serial.println(F("I-GAUGE"));
-  Serial.flush();
-  s_off();
-
   //LCD init
   s_on();
   Serial.println(F("INIT LCD"));
   Serial.flush();
   s_off();
-
   i_En(I2C_ADDR);
   lcd.begin(16, 2);
   lcd.setBacklightPin(BACKLIGHT_PIN, POSITIVE);
@@ -137,6 +131,36 @@ void setup() {
   lcd.createChar(4, clocks3);
   lcd.createChar(5, clocks4);
   i_Dis();
+  a = ID.indexOf('R');
+  nama = ID.substring(a + 1);
+
+  //WELCOME SCREEN
+  for (i = 1; i <= 3; i++) {
+    digitalWrite(BState, HIGH);
+    s_on();
+    Serial.println(F("I-GAUGE PDAM BOGOR"));
+    Serial.flush();
+    s_off();
+    i_En(I2C_ADDR);
+    lcd.setCursor(1, 0);
+    lcd.print(F("I-GAUGE "));
+    lcd.write(byte(1));
+    lcd.print(F(" PDAM"));
+    lcd.setCursor(2, 1);
+    lcd.write(byte(0));
+    lcd.print(F(" BOGOR "));
+    lcd.print(nama);
+    lcd.print(F(" "));
+    lcd.write(byte(0));
+    i_Dis();
+    Narcoleptic.delay(1000);
+    digitalWrite(BState, LOW);
+  }
+
+  s_on();
+  Serial.println(F("I-GAUGE"));
+  Serial.flush();
+  s_off();
 
   //LED status init
   pinMode(RState, OUTPUT);  // Red
@@ -144,34 +168,12 @@ void setup() {
   pinMode(BState, OUTPUT);  // Blue
   pinMode(GPower, OUTPUT);  // Blue
   pinMode(BPower, OUTPUT);  // Blue
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH)  ;
 
   for (i = 1; i <= 5; i++) {
     digitalWrite(21 + i * 2, LOW);
   }
 
-  //WELCOME SCREEN
-  for (i = 0; i <= 1; i++) {
-    s_on();
-    Serial.println(F("I-GAUGE PDAM BOGOR"));
-    Serial.flush();
-    s_off();
-    i_En(I2C_ADDR);
-    lcd.setCursor(2, 0);
-    lcd.print(F("* I-GAUGE"));
-    lcd.write(byte(1));
-    lcd.print(F(" *"));
-    lcd.setCursor(1, 1);
-    lcd.write(byte(0));
-    lcd.print(F(" PDAM BOGOR "));
-    lcd.write(byte(0));
-    i_Dis();
-    Narcoleptic.delay(1000);
-  }
-
   //INIT ADS1115
-  digitalWrite(13, LOW)  ;
   i_En(ads_addr);
   s_on();
   Serial.println(F("INIT ADS1115"));
@@ -199,7 +201,8 @@ void setup() {
   }
 
   //GET TIME FROM RTC
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < 3; i++) {
+    digitalWrite(GState, HIGH);
     i_Dis();
     i_En(rtc_addr);
     nows = rtc.now();
@@ -219,7 +222,9 @@ void setup() {
     lcd.setCursor(3, 0);  lcd2digits(nows.day());
     lcd.write('/');       lcd2digits(nows.month());
     lcd.write('/');       lcd.print(nows.year());
-    Narcoleptic.delay(1000);
+    Narcoleptic.delay(500);
+    digitalWrite(GState, LOW);
+    Narcoleptic.delay(500);
   }
 
   s_on();
@@ -228,12 +233,14 @@ void setup() {
   s_off();
   pinMode(SSpin, OUTPUT);
   digitalWrite(SSpin, HIGH);
-  Narcoleptic.delay(500);
+  power_timer0_enable();
+  delay(500);
 
   //INIT SD CARD
   i_En(I2C_ADDR);
   lcd.clear();
-  lcd.setCursor(0, 0); lcd.print(F("- SD CARD INIT -"));
+  lcd.setCursor(0, 0);
+  lcd.print(F("- SD CARD INIT -"));
   spiEn();
   delay(100);
   if (!SD.begin(SSpin)) { //SD CARD ERROR
@@ -257,9 +264,15 @@ void setup() {
   Serial.println(F("SD CARD OK!!!"));
   Serial.flush();
   s_off();
-  Narcoleptic.delay(1000);
+  power_timer0_enable();
 
   //INISIALISASI DS18B20
+  for (i = 1; i <= 2; i++) {
+    digitalWrite(BState, HIGH);
+    delay(300);
+    digitalWrite(BState, LOW);
+    delay(500);
+  }
   i_En(I2C_ADDR);
   lcd.clear();
   ledOff();
@@ -285,10 +298,12 @@ void setup() {
     s_off();
   }
   i_Dis();
-  Narcoleptic.delay(1000);
+  Narcoleptic.delay(500);
   ledOff();
 
   //AMBIL INTERVAL PENGUKURAN
+  digitalWrite(RState, HIGH);
+  digitalWrite(GState, HIGH);
   i_En(I2C_ADDR);
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -296,8 +311,11 @@ void setup() {
   lcd.setCursor(0, 1);
   i_Dis();
   configs();
+  ledOff();
 
   //TIME INTERVAL
+  digitalWrite(GState, HIGH);
+  digitalWrite(BState, HIGH);
   i_En(I2C_ADDR);
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -318,10 +336,13 @@ void setup() {
   Serial.flush();
   off();
   Narcoleptic.delay(2000);
+  ledOff();
 
   //BURST INTERVAL
   i_En(I2C_ADDR);
   lcd.clear();
+  digitalWrite(GState, HIGH);
+  digitalWrite(BState, HIGH);
   lcd.print(F("BURST INTERVAL"));
   s_on();
   Serial.print(F("BURST INTERVAL = "));
@@ -338,39 +359,30 @@ void setup() {
   }
   Serial.flush();
   off();
-  Narcoleptic.delay(2000);
+  ledOff();
 
-  //PHONE NUMBER
-  /*i_En(I2C_ADDR);
-    lcd.clear();
-    lcd.print(F("PHONE NUMBER"));
-    lcd.setCursor(0, 1);
-    lcd.print(noHP);
-    s_on();
-    Serial.print(F("No HP = "));
-    Serial.println(noHP);
-    Serial.flush();
-    off();
-    Narcoleptic.delay(1000);*/
-
-  //INIT SIM800L & SEND SMS
-  i_En(I2C_ADDR);
-  lcd.clear();
-  lcd.print(F("INIT GSM MODULE"));
+  //INIT SIM800L
   s_on();
   Serial.println(F("INITIALIZATION SIM800L..."));
   Serial.flush();
   off();
 
-  //delay for go to sim800l
-  //Narcoleptic.delay(1000);
+  power_timer0_enable();
+  digitalWrite(BState, HIGH);
+  delay(500);
+  digitalWrite(GState, HIGH);
+  delay(1000);
+  ledOff();
   sim800l();
   Narcoleptic.delay(1000);
 
   //CEK KUOTA
-  i_En(I2C_ADDR);
-  lcd.clear();
-  lcd.print(F("CHECK BALANCE"));
+  power_timer0_enable();
+  digitalWrite(BState, HIGH);
+  delay(500);
+  digitalWrite(RState, HIGH);
+  delay(1000);
+  ledOff();
   off();
   cekkuota();
   i_En(I2C_ADDR);
@@ -379,28 +391,23 @@ void setup() {
   off();
   Narcoleptic.delay(1000);
 
-  //TURN OFF ALL LED
-  ledOff();
   bersihdata();
   s_on();
   Serial.println(F("I-GAUGE READY TO RECORD DATA"));
   Serial.flush();
   s_off();
-  digitalWrite(BState, HIGH);
   off();
-  Narcoleptic.delay(1000);
-  ledOff();
 
+  //interval=3;
   //SET WAKTU PENGAMBILAN DATA
   i_En(rtc_addr);
   nows = rtc.now();
   setTime(nows.hour(), nows.minute(), nows.second(), nows.month(), nows.day(), nows.year());
   Alarm.timerRepeat(interval * 60, ambil);
-  Alarm.alarmRepeat(5, 0, 0, cekkuota); // 5:00am every day
+  Alarm.alarmRepeat(4, 59, 59, cekkuota); // 5:00am every day
 
   //AMBIL DATA
   ambil();
-
 }
 
 void loop() {
@@ -409,12 +416,15 @@ void loop() {
 
 void ambil() {
   Alarm.delay(0);
+  ledOff();
+  digitalWrite(BState, HIGH);
   i_En(I2C_ADDR);
   lcd.clear();
   lcd.print(F("--  GET DATA  --"));
   i_Dis();
 
   //WAKE UP SIM800L
+  power_timer0_enable();
   s_on();
   s1_on();
   Serial.println(F(" "));
@@ -423,7 +433,7 @@ void ambil() {
   Serial1.flush();
   s_off();
   s1_off();
-  Narcoleptic.delay(200);
+  delay(500);
   s_on();
   s1_on();
   Serial1.println(F("AT+CSCLK=0"));
@@ -431,6 +441,8 @@ void ambil() {
   bacaserial(200);
   s_off();
   s1_off();
+  delay(500);
+  
 
   //GET TIME
   i_En(rtc_addr);
@@ -456,11 +468,6 @@ void ambil() {
   Serial.flush();
   s_off();
 
-  /* //get data GPS
-    for (i = 0; i < 2; i++) {
-     gpsdata();
-    }*/
-
   //get data pressure, current, dan voltage
   for (i = 0; i < burst * 10; i++) {
     i_En(ads_addr);
@@ -480,9 +487,10 @@ void ambil() {
     lcd2digits(nows.minute());  lcd.write(':');
     lcd2digits(nows.second());
     off();
+    power_timer0_enable();
     Narcoleptic.delay(100);
   }
-
+  digitalWrite(BState, LOW);
   i_En(I2C_ADDR);
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -491,20 +499,20 @@ void ambil() {
   lcd.print(F("CURRENT = "));
 
   // KONVERSI
-  voltase = ((float)reads / (float)burst) * 0.1875 / 1000.0000; // nilai voltase dari nilai DN
+  voltase = ((float)reads / ((float)burst * 10)) * 0.1875 / 1000.0000; // nilai voltase dari nilai DN
   tekanan = (300.00 * voltase - 150.00) * 0.01 + float(offset);
-  voltase = (((float)reads0 / (float)burst) * 0.1875);
+  voltase = (((float)reads0 / ((float)burst * 10)) * 0.1875);
   voltase = reads0 * 0.1875;
-  ampere = ((voltase - ACSoffset) / mVperAmp) / 10000; //dalam A
-    sensors.requestTemperatures();
+  if(ID=="BOGOR04"){
+	ampere = ((voltase - ACSoffset) / mVperAmp) / 10000; //dalam A untuk unit 4  
+  }
+  else{
+	ampere = ((voltase - ACSoffset) / mVperAmp) / 1000; //dalam A untuk unit 5  
+  }
+  sensors.requestTemperatures();
   suhu = sensors.getTempCByIndex(0);
-  voltase = float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 3.0255;
-  if (voltase >= 8.00) {
-    source = "PLN";
-  }
-  if (voltase < 8.00) {
-    source = "BATTERY";
-  }
+  voltase = 5;//float(ads.readADC_SingleEnded(tegangan)) * 0.1875 / 1000.0000 * 3;
+  source = "BATTERY";
 
   //display data to LCD
   lcd.setCursor(10, 0);
@@ -515,8 +523,7 @@ void ambil() {
   lcd.print(ampere, 2);
   lcd.setCursor(15, 1);
   lcd.print(F("A"));
-  off();
-  Narcoleptic.delay(1000);
+  delay(1000);
   i_En(I2C_ADDR);
   lcd.clear();
   lcd.print(F("PRES = "));
@@ -530,6 +537,7 @@ void ambil() {
   lcd.print(char(223));
   lcd.setCursor(14, 1);
   lcd.print(F("C"));
+  delay(1000);
   i_Dis();
 
   //SAVE TO SD CARD
@@ -561,7 +569,7 @@ void ambil() {
     file.print(F("Date (YYYY-MM-DD HH:MM:SS) | "));
     file.print(F("Longitude (DD.DDDDDD°) | Latitude (DD.DDDDDD°) | Pressure (BAR)| Temperature (°C) | "));
     file.print(F("Voltage (V) | Current (AMP) | Source | ID Station | Burst interval (SECOND)| "));
-    file.println(F("Phone Number | Operator | Server Code | Network"));
+    file.println(F("Operator | Server Code | Network"));
   }
 
   //simpan data ke SD CARD
@@ -605,9 +613,6 @@ void ambil() {
   //interval
   file.print(interval);
   file.print('|');
-  //phone number
-  file.print(noHP);
-  file.print('|');
   //operator
   file.print(operators);
   file.print('|');
@@ -634,6 +639,7 @@ void ambil() {
   Serial1.println(F("AT+CSCLK=2"));
   Serial.flush();
   Serial1.flush();
+
   i_En(0x68);
   delay(10);
   nows = rtc.now();
@@ -656,9 +662,18 @@ void ambil() {
     setTime(nows.hour(), nows.minute(), nows.second(), nows.month(), nows.day(), nows.year());
     i_Dis();
     start = nows.unixtime() - waktu;
+    s_on();
+    Serial.println(start);
+    Serial.flush();
+    s_off();
 
     if (start < ((interval * 60) - 10)) {
       Narcoleptic.delay(8000);
+      power_timer0_enable();
+      digitalWrite(GState, HIGH);
+      delay(400);
+      ledOff();
+      off();
     }
     else {
       break;
@@ -666,15 +681,19 @@ void ambil() {
   }
   //bersih variabel
   bersihdata();
+  on();
   i_En(rtc_addr);
   nows = rtc.now();
   setTime(nows.hour(), nows.minute(), nows.second(), nows.month(), nows.day(), nows.year());
+  power_timer0_enable();
+  digitalWrite(BState, HIGH);
+  digitalWrite(GState, HIGH);
 }
 
 void ledOff() {
   digitalWrite(RState, LOW);
   digitalWrite(GState, LOW);
-  digitalWrite(GState, LOW);
+  digitalWrite(BState, LOW);
 }
 
 void bersihdata() {
@@ -918,161 +937,17 @@ void off() {
   power_twi_disable(); // TWI (I2C)
 }
 
-void GPS_ON() {
-  //INISIALISASI GPS - interval TUNGGU MENCARI SATELIT
-  off();
-  i_En(I2C_ADDR);
-  lcd.clear();
-  lcd.print(F("--  GPS INIT  --"));
-  lcd.setCursor(0, 1);
-  lcd.print(F(" Waiting Signal"));
-  s_on();
-  s1_on();
+void on() {
+  power_spi_enable(); // SPI
+  power_usart0_enable(); // Serial (USART)
+  power_usart1_enable();
   power_usart2_enable();
-  Serial.println(F("Waiting Signal"));
-  Serial.flush();
-  off();
-  Narcoleptic.delay(1000);
-
-  //GET COORDINATES
-  for (i = 0; i < 60; i++) { //180
-    displayInfo();
-    if (float(hdop) > 0 && float(hdop) <= 2.0) break;
-  }
-
-  //DISPLAY LONG & LAT
-  i_En(I2C_ADDR);
-  lcd.clear();
-  lcd.print(F("LONGITUDE"));
-  i_Dis();
-  Narcoleptic.delay(1000);
-  i_En(I2C_ADDR);
-  lcd.setCursor(0, 1);
-  if (flon < 0)
-    lcd.print("W ");
-  else
-    lcd.print("E ");
-  i = int(abs(flon));
-  lcd.print(i); //DERAJAT
-  lcd.print(char(223));
-  tekanan = ((abs(flon) - float(i)) * 60.000000); //MENIT
-  lcd.print(int(tekanan));
-  lcd.print("'");
-  tekanan = (tekanan - float(int(tekanan))) * 60.00; //DETIK
-  lcd.print(tekanan);
-  lcd.print("\"");
-  i_Dis();
-  Narcoleptic.delay(1000);
-
-  i_En(I2C_ADDR);
-  lcd.clear();
-  lcd.print(F("LATITUDE"));
-  s_on();
-  Serial.println(" ");
-  Serial.print(F("LONGITUDE = "));
-  Serial.println(flon, 4);
-  Serial.print(F("LATITUDE = "));
-  Serial.println(flat, 4);
-  Serial.flush();
-  s_off();
-  lcd.setCursor(0, 1);
-  if (flat < 0)
-    lcd.print("S ");
-  else
-    lcd.print("N ");
-  i = int(abs(flat));
-  lcd.print(i); //DERAJAT
-  lcd.print(char(223));
-  tekanan = ((abs(flat) - float(i)) * 60.0000000); //MENIT
-  lcd.print(int(tekanan));
-  lcd.print("'");
-  tekanan = (tekanan - float(int(tekanan))) * 60.00; //DETIK
-  lcd.print(tekanan);
-  lcd.print("\"");
-  off();
-  Narcoleptic.delay(1000);
-  lcd.clear();
-  i = '0';
-  tekanan = '0';
-  ledOff();
+  power_timer0_enable();// Timer 0   >> millis() will stop working
+  power_timer1_enable();// Timer 1   >> analogWrite() will stop working.
+  power_twi_enable(); // TWI (I2C)
 }
 
-void displayInfo() {
-  power_timer0_enable();
-  power_usart2_enable();
-  s_on();
-  start = millis();
-  do   {
-    while (Serial2.available()) {
-      g = Serial2.read();
-      gps.encode(g);
-      Serial.print(g);
-    }
-  }
-  while (millis() - start < 1000);
-  Serial.flush();
-  Serial2.flush();
-  off();
-  ledOff();
-  Narcoleptic.delay(1000);
-  i_En(I2C_ADDR);
-
-  if (gps.location.isUpdated())  {
-    flat = gps.location.lat();
-    flon = gps.location.lng();
-    hdop = float(gps.hdop.value()) / 100.00;
-    lcd.setCursor(0, 1);
-    lcd.print("                ");
-    lcd.setCursor(0, 1);
-    lcd.print(F("- GPS DETECTED -"));
-    i_Dis();
-    s_on();
-    Serial.println(F("- GPS DETECTED -"));
-    ledOff();
-    digitalWrite(BState, HIGH); //BLUE
-  }
-  if (gps.charsProcessed() < 10)  {
-    lcd.setCursor(0, 1);
-    lcd.print("                ");
-    lcd.setCursor(0, 1);
-    lcd.print(F("NO GPS DETECTED!"));
-    s_on();
-    Serial.println(F("NO GPS DETECTED!"));
-    ledOff();
-    digitalWrite(RState, HIGH); //RED
-  }
-  Serial.flush();
-  Serial2.flush();
-  off();
-  Narcoleptic.delay(1000);
-}
-
-void gpsdata() {
-  power_timer0_enable();
-  s_on();
-  s1_on();
-  start = millis();
-  do   {
-    while (Serial2.available()) {
-      g = Serial2.read();
-      gps.encode(g);
-      Serial.print(g);
-    }
-  }
-  while (millis() - start < 1000);
-  Serial.flush();
-  Serial2.flush();
-  if (gps.location.isUpdated())  {
-    flat = gps.location.lat();
-    flon = gps.location.lng();
-    hdop = float(gps.hdop.value()) / 100.00;
-  }
-  if (gps.charsProcessed() < 10)  {
-  }
-  off();
-}
-
-void ConnectAT(String cmd, int d) {
+byte ConnectAT(String cmd, int d) {
   i = 0;
   s_on();
   s1_on();
@@ -1100,8 +975,7 @@ void ConnectAT(String cmd, int d) {
     Serial.flush();
     Serial1.flush();
     result = "OK";
-    off();
-    Narcoleptic.delay(1000);
+    delay(750);
   }
   else {
     lcd.setCursor(0, 1);
@@ -1123,6 +997,7 @@ void ConnectAT(String cmd, int d) {
 
     }
   }
+  return i;
 }
 
 void ceksim() {
@@ -1131,6 +1006,7 @@ cops:
   filename = "";
   s1_on();
   s_on();
+  digitalWrite(GState, HIGH);
   power_timer0_enable();
   Serial.println(F("AT+COPS?"));
   Serial1.println(F("AT+COPS?"));
@@ -1156,8 +1032,6 @@ cops:
   //option if not register at network
   if (operators == "")  {
     c++;
-    goto cops;
-
     if (c == 9) {
       i_En(I2C_ADDR);
       lcd.clear();
@@ -1165,11 +1039,18 @@ cops:
       lcd.setCursor(0, 1);
       lcd.print(F("FOUND"));
       off();
+      ledOff();
       while (1) {
-
+        digitalWrite(RState, HIGH);
+        power_timer0_enable();
+        delay(1000);
+        digitalWrite(RState, LOW);
+        delay(1000);
       }
     }
+    goto cops;
   }
+
   s_on();
   i_En(I2C_ADDR);
   Serial.print(F("OPERATOR="));
@@ -1178,6 +1059,7 @@ cops:
   y = "";
   Serial.flush();
   Serial1.flush();
+  digitalWrite(GState, LOW);
   off();
 }
 
@@ -1186,6 +1068,7 @@ signal:
   filename = "";
   s_on();
   s1_on();
+  digitalWrite(GState, HIGH);
   power_timer0_enable();
   Serial1.println(F("AT+CSQ"));
   delay(100);
@@ -1198,7 +1081,7 @@ signal:
     }
   }
   Serial1.flush();
-  Narcoleptic.delay(500);
+  delay(500);
 
   a = (filename.substring(0, filename.indexOf(','))).toInt();
   Serial.print(a);
@@ -1227,6 +1110,7 @@ signal:
   }
   Serial.flush();
   Serial1.flush();
+  digitalWrite(GState, LOW);
   off();
 }
 
@@ -1239,7 +1123,8 @@ void sim800l() { //udah fix
   Serial.flush();
   Serial1.flush();
   off();
-  Narcoleptic.delay(500);
+  power_timer0_enable();
+  delay(500);
 
   s_on();
   s1_on();
@@ -1249,19 +1134,21 @@ void sim800l() { //udah fix
   Serial.flush();
   Serial1.flush();
   off();
-  Narcoleptic.delay(1000);
+  power_timer0_enable();
+  delay(500);
 
   i_En(I2C_ADDR);
   s_on();
   s1_on();
   lcd.setCursor(0, 1);
   for (a = 0; a < 6; a++) {
-    ConnectAT(F("AT"), 100);
+    b = ConnectAT(F("AT"), 100);
+    if (b == 8) break;
   }
   Serial.flush();
   Serial1.flush();
   off();
-  Narcoleptic.delay(1000);
+  Narcoleptic.delay(500);
 
   i_En(I2C_ADDR);
   lcd.setCursor(0, 1);
@@ -1270,7 +1157,8 @@ void sim800l() { //udah fix
   lcd.print(F("OPS="));
   off();
   ceksim();
-  Narcoleptic.delay(2000);
+  power_timer0_enable();
+  delay(1000);
 
   i_En(I2C_ADDR);
   lcd.setCursor(0, 1);
@@ -1279,7 +1167,8 @@ void sim800l() { //udah fix
   lcd.print(F("SIGNAL="));
   off();
   sinyal();
-  Narcoleptic.delay(2000);
+  power_timer0_enable();
+  delay(1000);
 
   //SIM800L sleep mode
   s1_on();
@@ -1342,8 +1231,6 @@ void configs() {
   b = filename.indexOf("\r", a + 1);
   burst = filename.substring(a + 1, b).toInt();
   a = filename.indexOf("\r", b + 1);
-  noHP = "";//+62
-  noHP = filename.substring(b + 2, a);
   filename = '0';
   off();
   Narcoleptic.delay(1000);
@@ -1611,7 +1498,6 @@ serve:
       y += String(kuota) + "'\"}";
 
       //simpan data sisa pulsa dan kuota ke dalam sd card
-
       result = "pulsa.ab";
       result.toCharArray(str, 13);
       // set date time callback function
@@ -1623,7 +1509,6 @@ serve:
       file = SD.open(str, FILE_WRITE);
       file.println(y);
       Serial.println(y);
-      Serial.println("lanjut");
       Serial.flush();
       file.flush();
       file.close();
@@ -1729,6 +1614,11 @@ serve:
 
 void cekkuota() {
   c = 0;
+  i_En(I2C_ADDR);
+  lcd.clear();
+  lcd.print(F("CHECK BALANCE"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("Init...."));
   s_on();
   s1_on();
   Serial1.println("AT");
@@ -1751,6 +1641,11 @@ void cekkuota() {
   Serial.flush();
   Serial1.flush();
   off();
+  i_En(I2C_ADDR);
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("Init Finish!"));
   Narcoleptic.delay(500);
 top:
   if (c == 5)  {
@@ -1762,35 +1657,6 @@ top:
   kuota = "";
 
   power_timer0_enable();
-  s_on();
-  s1_on();
-  start = millis();
-  Serial1.println("AT+COPS?");
-  Serial1.flush();
-  while ((start + 1000) > millis()) {
-    while (Serial1.available() > 0) {
-      g = Serial1.read();
-      Serial.write(g);
-      sms += g;
-
-    }
-  }
-
-  Serial.flush();
-  Serial1.flush();
-  off();
-  a = sms.indexOf(',');
-  if (a == 0) {
-    goto top;
-  }
-
-  s_on();
-  s1_on();
-  Serial1.println("AT+CSQ");
-  bacaserial(100);
-  Serial1.flush();
-  off();
-  Narcoleptic.delay(200);
   s_on();
   s1_on();
   Serial1.println("AT+CUSD=2");
@@ -1813,6 +1679,11 @@ top:
   s_on();
   s1_on();
   start = millis();
+  i_En(I2C_ADDR);
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("*888#"));
   Serial1.println("AT+CUSD=1,\"*888#\"");
   Serial1.flush();
 
@@ -1837,12 +1708,18 @@ top:
   a = sms.indexOf(':');
   b = sms.indexOf('.', a + 1);
   b = sms.indexOf('.', b + 1);
-  b = sms.indexOf('.', b + 1);
+  c = sms.indexOf('/', a);
+  kuota = sms.substring(c - 11, c + 8);
+  Serial.println(kuota);
   sms = sms.substring(a + 5, b);
+  sms = sms + '.' + kuota;
+  Serial.println(sms);
+  Serial.flush();
 
   Narcoleptic.delay(100);
   start = millis();
-  //Serial.println("AT+CUSD=1,\"3\"");
+  i_En(I2C_ADDR);
+  lcd.print(F("3"));
   Serial1.println("AT+CUSD=1,\"3\"");
   while ((start + 5000) > millis()) {
     while (Serial1.available() > 0) {
@@ -1863,7 +1740,10 @@ top:
 
   kuota = "";
   start = millis();
-  //Serial.println("AT+CUSD=1,\"2\"");
+  i_En(I2C_ADDR);
+  lcd.print(F("#"));
+  Narcoleptic.delay(300);
+  lcd.print(F("2"));
   Serial1.println("AT+CUSD=1,\"2\"");
   while ((start + 5000) > millis()) {
     while (Serial1.available() > 0) {
@@ -1882,7 +1762,8 @@ top:
   }
   a = kuota.indexOf(':');
   b = kuota.indexOf('.', a + 1);
-  kuota = kuota.substring(a + 5, b);
+  a = kuota.indexOf(':', a + 1);
+  kuota = kuota.substring(a + 2, b);
 
 down:
   a = 0; b = 0; i = 0;
@@ -1892,12 +1773,17 @@ down:
   bacaserial(200);
   Serial.flush();
   Serial1.flush();
-  Serial.println();
   Serial.println(sms);
+  Serial.print(F("KUOTA : "));
   Serial.println(kuota);
   Serial.flush();
   Serial1.flush();
   server(2); //send kuota to server
+  i_En(I2C_ADDR);
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("Finish!!!"));
   s_on();
   Serial.println(F("cek kuota selesai"));
   Serial.flush();
@@ -1914,5 +1800,4 @@ void dateTime(uint16_t* date, uint16_t* time) {
   // return time using FAT_TIME macro to format fields
   *time = FAT_TIME(nows.hour(), nows.minute(), nows.second());
 }
-
 
